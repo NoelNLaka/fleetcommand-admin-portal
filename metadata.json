@@ -1,0 +1,7 @@
+{
+  "name": "FleetCommand Admin Portal",
+  "description": "A comprehensive fleet management dashboard for tracking vehicle rentals, maintenance schedules, and customer bookings with real-time analytics and tracking.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
