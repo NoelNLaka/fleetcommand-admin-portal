@@ -1,9 +1,11 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { INVENTORY, INVENTORY_STATS } from '../constants';
 import { VehicleStatus } from '../types';
 
 const Inventory: React.FC = () => {
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
   const getStatusBadge = (status: VehicleStatus) => {
     switch (status) {
       case VehicleStatus.AVAILABLE:
@@ -33,7 +35,7 @@ const Inventory: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-white dark:bg-background-dark p-4 md:p-8 space-y-8">
+    <div className="flex-1 overflow-y-auto bg-white dark:bg-background-dark p-4 md:p-8 space-y-8 relative">
       {/* Page Header */}
       <div className="space-y-4">
         <nav className="flex text-xs font-medium text-slate-400 gap-2">
@@ -46,7 +48,10 @@ const Inventory: React.FC = () => {
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Vehicle Inventory</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Manage fleet availability, status, and locations.</p>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg hover:bg-primary/90 transition-all shadow-sm self-start md:self-auto">
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg hover:bg-primary/90 transition-all shadow-sm self-start md:self-auto"
+          >
             <span className="material-symbols-outlined text-[20px]">add</span>
             Add Vehicle
           </button>
@@ -165,6 +170,127 @@ const Inventory: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Add Vehicle Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsAddModalOpen(false)}
+          ></div>
+          
+          <div className="relative bg-white dark:bg-surface-dark w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Add New Vehicle</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Register a new vehicle to your fleet inventory.</p>
+              </div>
+              <button 
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <div className="px-8 py-8 overflow-y-auto max-h-[calc(100vh-200px)]">
+              <form className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Basic Info */}
+                  <div className="md:col-span-2 space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Basic Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Vehicle Name</label>
+                        <input type="text" placeholder="e.g. Toyota Camry" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Year</label>
+                        <input type="text" placeholder="2024" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Trim Level / Model Version</label>
+                      <input type="text" placeholder="e.g. LE Hybrid" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                    </div>
+                  </div>
+
+                  {/* Identification */}
+                  <div className="md:col-span-2 pt-4 space-y-4 border-t border-slate-50 dark:border-slate-800">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Identification & Logistics</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">License Plate</label>
+                        <input type="text" placeholder="ABC-1234" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">VIN Number</label>
+                        <input type="text" placeholder="17-character VIN" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Current Status</label>
+                        <select className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none">
+                          <option value={VehicleStatus.AVAILABLE}>Available</option>
+                          <option value={VehicleStatus.RENTED}>Rented</option>
+                          <option value={VehicleStatus.MAINTENANCE}>Maintenance</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Location</label>
+                        <input type="text" placeholder="e.g. LAX Lot B" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Operational */}
+                  <div className="md:col-span-2 pt-4 space-y-4 border-t border-slate-50 dark:border-slate-800">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Pricing & Usage</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Mileage (mi)</label>
+                        <input type="text" placeholder="0" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Daily Rate ($)</label>
+                        <input type="text" placeholder="45.00" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Image Upload Placeholder */}
+                  <div className="md:col-span-2 pt-4 space-y-4 border-t border-slate-50 dark:border-slate-800">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Vehicle Image</h3>
+                    <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 bg-slate-50/50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all cursor-pointer group">
+                      <span className="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors text-3xl">add_a_photo</span>
+                      <p className="text-xs font-bold text-slate-500 group-hover:text-slate-900 dark:group-hover:text-slate-300">Click to upload or drag image</p>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-8 py-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 flex items-center justify-end gap-3">
+              <button 
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-6 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-8 py-2.5 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+              >
+                Register Vehicle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
