@@ -44,10 +44,10 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, title }) => {
         </button>
         <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
         <div className="flex items-center gap-3 ml-2">
-           <img src="https://i.pravatar.cc/150?u=jane" alt="User" className="size-8 rounded-full border-2 border-slate-100 dark:border-slate-800" />
+           <img src="https://i.pravatar.cc/150?u=alex" alt="User" className="size-8 rounded-full border-2 border-slate-100 dark:border-slate-800" />
            <div className="hidden sm:block">
-              <p className="text-xs font-black text-slate-900 dark:text-white leading-none">Jane Doe</p>
-              <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-tighter">Fleet Manager</p>
+              <p className="text-xs font-black text-slate-900 dark:text-white leading-none">Alex Morgan</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-tighter">Admin</p>
            </div>
         </div>
       </div>

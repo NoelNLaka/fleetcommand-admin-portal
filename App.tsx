@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -7,6 +8,7 @@ import Bookings from './components/Bookings';
 import Inventory from './components/Inventory';
 import Maintenance from './components/Maintenance';
 import Reports from './components/Reports';
+import Settings from './components/Settings';
 
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -26,6 +28,8 @@ const App: React.FC = () => {
         return <Maintenance />;
       case 'reports':
         return <Reports />;
+      case 'settings':
+        return <Settings />;
       default:
         return (
           <div className="flex-1 flex items-center justify-center p-8">
@@ -53,12 +57,13 @@ const App: React.FC = () => {
       case 'bookings': return 'Booking Management';
       case 'inventory': return 'Fleet Inventory';
       case 'customers': return 'Customer Management';
+      case 'settings': return 'System Settings';
       default: return undefined;
     }
   };
 
   return (
-    <div className="flex h-screen bg-background-light dark:bg-background-dark text-slate-900 dark:text-white overflow-hidden">
+    <div className="flex h-screen bg-background-light dark:bg-background-dark text-slate-900 dark:text-white overflow-hidden transition-colors duration-300">
       {/* Desktop Sidebar */}
       <Sidebar 
         activeView={activeView} 

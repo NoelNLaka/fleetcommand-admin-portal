@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface SidebarProps {
@@ -38,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, className 
               onClick={() => setActiveView(item.id)}
               className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all group ${
                 activeView === item.id
-                  ? 'bg-primary/10 text-primary shadow-sm'
+                  ? 'bg-primary/10 text-primary'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
@@ -52,13 +53,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, className 
           ))}
         </nav>
 
-        {/* Bottom Action */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+        {/* Bottom Section */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+          {/* Settings Button - styled to match screenshot highlight */}
           <button
             onClick={() => setActiveView('settings')}
             className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all group ${
               activeView === 'settings'
-                ? 'bg-primary/10 text-primary shadow-sm'
+                ? 'bg-primary/10 text-primary border border-primary/20'
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
@@ -68,12 +70,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, className 
             <span className="text-sm font-bold tracking-tight">Settings</span>
           </button>
           
-          <div className="pt-2 border-t border-slate-50 dark:border-slate-800">
-             <div className="flex items-center gap-3 px-3 py-2">
-                <img src="https://i.pravatar.cc/150?u=alex" alt="" className="size-10 rounded-full border-2 border-slate-100 dark:border-slate-800" />
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+             <div className="flex items-center gap-3 px-3 py-2 border-2 border-primary/20 rounded-2xl bg-slate-50/50 dark:bg-slate-900/20">
+                <img src="https://i.pravatar.cc/150?u=alex" alt="" className="size-10 rounded-full border-2 border-white dark:border-slate-800 shadow-sm" />
                 <div className="flex flex-col overflow-hidden">
                   <p className="text-sm font-black text-slate-900 dark:text-white truncate">Alex Morgan</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter truncate">Admin</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">Admin</p>
                 </div>
               </div>
           </div>
