@@ -36,12 +36,12 @@ const LoginPage: React.FC = () => {
             <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-purple-500/20 rounded-full blur-[128px] pointer-events-none" />
 
             <div className="w-full max-w-md bg-surface-light dark:bg-surface-dark p-8 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 relative z-10">
-                <div className="text-center mb-8">
-                    <div className="bg-primary/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-primary">
-                        <span className="material-symbols-outlined text-4xl filled">local_taxi</span>
+                <div className="mb-8 text-center">
+                    <div className="flex items-center justify-center gap-3 mb-2">
+                        <img src="/actuon-logo.png" alt="Actuon Logo" className="h-10 w-auto" />
+                        <span className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">Actuon</span>
                     </div>
-                    <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Welcome Back</h1>
-                    <p className="text-slate-500 dark:text-slate-400 mt-2">Sign in to access your fleet dashboard</p>
+                    <p className="text-slate-500 dark:text-slate-400">Sign in to manage your fleet</p>
                 </div>
 
                 {error && (

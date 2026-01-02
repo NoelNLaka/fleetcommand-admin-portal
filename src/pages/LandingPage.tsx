@@ -4,12 +4,12 @@ import { Link } from 'react-router-dom';
 const LandingPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col">
-            <header className="px-6 py-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md sticky top-0 z-50">
+            <header className="px-6 md:px-20 lg:px-32 py-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md sticky top-0 z-50">
                 <div className="flex items-center gap-3">
-                    <div className="bg-primary p-2 rounded-xl text-white shadow-lg shadow-primary/20">
-                        <span className="material-symbols-outlined text-2xl filled">local_taxi</span>
+                    <div className="flex items-center gap-3">
+                        <img src="/actuon-logo.png" alt="Actuon Logo" className="h-10 w-auto" />
+                        <span className="text-xl font-black tracking-tighter text-slate-900 dark:text-white">Actuon</span>
                     </div>
-                    <span className="text-xl font-black tracking-tighter text-slate-900 dark:text-white">FleetManager</span>
                 </div>
                 <nav>
                     <Link to="/login" className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 active:scale-95">
@@ -18,7 +18,7 @@ const LandingPage: React.FC = () => {
                 </nav>
             </header>
 
-            <main className="flex-1 flex flex-col items-center justify-center text-center px-6 relative overflow-hidden">
+            <main className="flex-1 flex flex-col items-center justify-center text-center px-6 md:px-20 lg:px-32 relative overflow-hidden">
                 {/* Background Elements */}
                 <div className="absolute top-1/4 -left-64 w-96 h-96 bg-primary/20 rounded-full blur-[128px] pointer-events-none" />
                 <div className="absolute bottom-1/4 -right-64 w-96 h-96 bg-purple-500/20 rounded-full blur-[128px] pointer-events-none" />
@@ -66,7 +66,7 @@ const LandingPage: React.FC = () => {
             </main>
 
             <footer className="py-8 text-center text-slate-400 dark:text-slate-600 text-sm">
-                &copy; {new Date().getFullYear()} FleetManager Inc. All rights reserved.
+                &copy; {new Date().getFullYear()} Actuon Inc. All rights reserved.
             </footer>
         </div>
     );

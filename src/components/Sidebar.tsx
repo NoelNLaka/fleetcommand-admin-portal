@@ -31,11 +31,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className = "", onMobileItemClick }) 
             <div className="flex flex-col h-full">
                 {/* Brand */}
                 <div className="p-6 flex items-center gap-3">
-                    <div className="bg-primary p-2 rounded-xl text-white shadow-lg shadow-primary/20">
-                        <span className="material-symbols-outlined text-2xl filled">local_taxi</span>
-                    </div>
+                    <img src="/actuon-logo.png" alt="Actuon Logo" className="h-10 w-auto object-contain" />
                     <div className="flex flex-col">
-                        <h1 className="text-slate-900 dark:text-white text-xl font-black leading-tight tracking-tighter">FleetManager</h1>
+                        <h1 className="text-slate-900 dark:text-white text-2xl font-black leading-tight tracking-tighter">Actuon</h1>
                     </div>
                 </div>
 

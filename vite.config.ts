@@ -14,10 +14,10 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'icon-192x192.jpg', 'icon-512x512.jpg'],
+        includeAssets: ['favicon.ico', 'actuon-logo.png'],
         manifest: {
-          name: "Fleet Command Admin Portal",
-          short_name: "FleetAdmin",
+          name: "Actuon Fleet Command",
+          short_name: "Actuon",
           theme_color: "#137fec",
           background_color: "#101922",
           display: "standalone",
@@ -25,14 +25,14 @@ export default defineConfig(({ mode }) => {
           start_url: "/",
           icons: [
             {
-              src: "/icon-192x192.jpg",
+              src: "/actuon-logo.png",
               sizes: "192x192",
-              type: "image/jpeg"
+              type: "image/png"
             },
             {
-              src: "/icon-512x512.jpg",
+              src: "/actuon-logo.png",
               sizes: "512x512",
-              type: "image/jpeg"
+              type: "image/png"
             }
           ]
         }
