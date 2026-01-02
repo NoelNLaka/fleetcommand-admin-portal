@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'actuon-logo.png'],
+        includeAssets: ['favicon.ico', 'actuon-logo.png', 'pwa-192x192.png', 'pwa-512x512.png', 'maskable-icon.png'],
         manifest: {
           name: "Actuon Fleet Command",
           short_name: "Actuon",
@@ -25,14 +25,20 @@ export default defineConfig(({ mode }) => {
           start_url: "/",
           icons: [
             {
-              src: "/actuon-logo.png",
+              src: "/pwa-192x192.png",
               sizes: "192x192",
               type: "image/png"
             },
             {
-              src: "/actuon-logo.png",
+              src: "/pwa-512x512.png",
               sizes: "512x512",
               type: "image/png"
+            },
+            {
+              src: "/maskable-icon.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "any maskable"
             }
           ]
         }
