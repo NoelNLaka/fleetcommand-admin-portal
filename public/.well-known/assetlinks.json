@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.pwa.fleetmanager",
+    "sha256_cert_fingerprints": ["92:BC:EA:B9:9B:8A:73:86:B2:FB:22:00:4B:72:4F:FC:24:A1:A6:E9:C7:B3:B8:06:22:00:30:18:67:22:A1:19"]
+  }
+}]
