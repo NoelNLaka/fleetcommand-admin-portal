@@ -14,7 +14,18 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'actuon-logo.png', 'pwa-192x192.png', 'pwa-512x512.png', 'maskable-icon.png'],
+        includeAssets: [
+          'favicon.ico',
+          'actuon-logo.png',
+          'pwa-192x192.png',
+          'pwa-512x512.png',
+          'maskable-icon.png',
+          'apple-touch-icon.png',
+          'apple-touch-icon-120x120.png',
+          'apple-touch-icon-ipad.png',
+          'apple-touch-icon-ipad-retina.png',
+          'apple-splash-*.png'
+        ],
         manifest: {
           name: "Actuon Fleet Command",
           short_name: "Actuon",
