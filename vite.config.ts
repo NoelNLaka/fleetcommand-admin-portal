@@ -14,12 +14,22 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'icon-192x192.jpg', 'icon-512x512.jpg'],
+        includeAssets: [
+          'favicon.ico',
+          'icon-192x192.jpg',
+          'icon-512x512.jpg',
+          'actuon-logo.svg',
+          'apple-touch-icon.png',
+          'apple-touch-icon-120x120.png',
+          'apple-touch-icon-ipad.png',
+          'apple-touch-icon-ipad-retina.png',
+          'apple-splash-*.png'
+        ],
         manifest: {
           name: "Fleet Command Admin Portal",
           short_name: "FleetAdmin",
           theme_color: "#137fec",
-          background_color: "#101922",
+          background_color: "#FFFFFF",
           display: "standalone",
           orientation: "portrait",
           start_url: "/",
@@ -33,6 +43,12 @@ export default defineConfig(({ mode }) => {
               src: "/icon-512x512.jpg",
               sizes: "512x512",
               type: "image/jpeg"
+            },
+            {
+              src: "/apple-touch-icon.png",
+              sizes: "180x180",
+              type: "image/png",
+              purpose: "any maskable"
             }
           ]
         }
