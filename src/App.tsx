@@ -46,7 +46,7 @@ const ProtectedLayout: React.FC = () => {
     };
 
     return (
-        <div className="flex h-screen bg-background-light dark:bg-background-dark text-slate-900 dark:text-white overflow-hidden transition-colors duration-300">
+        <div className="flex h-dvh bg-background-light dark:bg-background-dark text-slate-900 dark:text-white overflow-hidden transition-colors duration-300">
             {/* Desktop Sidebar */}
             <Sidebar
                 className="w-64 border-r border-slate-200 dark:border-slate-800 hidden md:flex shrink-0"
