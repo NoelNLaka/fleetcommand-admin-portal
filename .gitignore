@@ -15,6 +15,10 @@ dist-ssr
 # Environment variables
 .env
 
+# Deployment scripts (contain credentials)
+deploy-supabase.sh
+deploy-supabase.bat
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
