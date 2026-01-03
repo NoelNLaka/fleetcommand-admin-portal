@@ -25,6 +25,8 @@ const Customers: React.FC = () => {
     license_state: '',
     license_expiry: ''
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('All');
 
   const fetchCustomerHistory = async (customerId: string) => {
     if (!profile?.org_id) return;
@@ -165,6 +167,24 @@ const Customers: React.FC = () => {
     setShowListOnMobile(false);
   };
 
+  const filteredCustomers = customers.filter(customer => {
+    // Search query filter
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch =
+      customer.name.toLowerCase().includes(searchLower) ||
+      customer.email.toLowerCase().includes(searchLower) ||
+      customer.phone.toLowerCase().includes(searchLower) ||
+      customer.license.number.toLowerCase().includes(searchLower);
+
+    // Category filter
+    if (activeFilter === 'All') return matchesSearch;
+    if (activeFilter === 'Active Rental') return matchesSearch && customer.status === CustomerStatus.ACTIVE;
+    if (activeFilter === 'Banned') return matchesSearch && customer.status === CustomerStatus.BANNED;
+    if (activeFilter === 'VIP') return matchesSearch && customer.totalBookings > 5; // Example logic for VIP
+
+    return matchesSearch;
+  });
+
   return (
     <div className="flex-1 flex flex-col lg:flex-row overflow-hidden bg-background-light dark:bg-background-dark relative">
       {/* Left Sidebar: Customer List */}
@@ -200,13 +220,19 @@ const Customers: React.FC = () => {
             <input
               type="text"
               placeholder="Search name, license, phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none"
             />
           </div>
 
           <div className="flex flex-wrap gap-2">
             {['All', 'Active Rental', 'VIP', 'Banned'].map(filter => (
-              <button key={filter} className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${filter === 'All' ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'}`}>
+              <button
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeFilter === filter ? 'bg-slate-900 text-white shadow-sm dark:bg-primary' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'}`}
+              >
                 {filter}
               </button>
             ))}
@@ -218,9 +244,12 @@ const Customers: React.FC = () => {
             <div className="flex items-center justify-center py-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : customers.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-sm">No customers found</div>
-          ) : customers.map((customer) => (
+          ) : filteredCustomers.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-slate-400 text-sm mb-1">No customers found</p>
+              {searchQuery && <p className="text-[10px] text-slate-500">Matching "{searchQuery}"</p>}
+            </div>
+          ) : filteredCustomers.map((customer) => (
             <button
               key={customer.id}
               onClick={() => handleSelectCustomer(customer.id)}

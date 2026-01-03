@@ -35,6 +35,8 @@ export async function redirectToCheckout(
     });
 
     if (error) {
+      const errorMsg = await error.context?.json() || error.message;
+      console.error('Edge Function Error Details:', errorMsg);
       throw error;
     }
 
