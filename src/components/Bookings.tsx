@@ -1,11 +1,103 @@
-
-import React, { useState } from 'react';
-import { DETAILED_BOOKINGS, INITIAL_STATS } from '../constants';
-import { BookingStatus, PaymentStatus } from '../types';
+import React, { useState, useEffect } from 'react';
+import { INITIAL_STATS as STATIC_STATS } from '../constants';
+import { BookingStatus, PaymentStatus, Booking } from '../types';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const Bookings: React.FC = () => {
+  const { profile } = useAuth();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'List' | 'Calendar'>('List');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  const fetchBookings = async () => {
+    if (!profile?.org_id) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+id,
+  start_date,
+  end_date,
+  duration_days,
+  status,
+  payment_status,
+  customer_id,
+  vehicle_id,
+  customer: customers(name, email),
+    vehicle: vehicles(name, plate)
+        `)
+        .eq('org_id', profile.org_id);
+
+      if (error) throw error;
+
+      const mappedBookings: Booking[] = (data || []).map((b: any) => ({
+        id: b.id,
+        bookingId: `#BK-${b.id.slice(0, 4).toUpperCase()}`,
+        customerName: b.customer?.name || 'Unknown Customer',
+        customerEmail: b.customer?.email || '',
+        customerAvatar: `https://i.pravatar.cc/150?u=${b.customer_id}`, // Using customer_id for unique avatar
+        vehicleName: b.vehicle?.name || 'Unknown Vehicle',
+        vehicleId: b.vehicle?.plate || '',
+        startDate: b.start_date || '',
+        endDate: b.end_date || '',
+        durationDays: b.duration_days || 0,
+        status: b.status as BookingStatus,
+        paymentStatus: b.payment_status as PaymentStatus
+      }));
+
+      setBookings(mappedBookings);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBookings();
+  }, [profile?.org_id]);
+
+  const stats = [
+    {
+      label: 'Active Rentals',
+      value: bookings.filter(b => b.status === BookingStatus.ACTIVE).length.toString(),
+      trend: '+5%',
+      trendType: 'up',
+      icon: 'key',
+      iconBg: 'bg-emerald-50 dark:bg-emerald-900/20',
+      iconColor: 'text-emerald-600'
+    },
+    {
+      label: 'Pending Pickups',
+      value: bookings.filter(b => b.status === BookingStatus.PENDING_PICKUP).length.toString(),
+      trend: '2%',
+      trendType: 'up',
+      icon: 'schedule',
+      iconBg: 'bg-blue-50 dark:bg-blue-900/20',
+      iconColor: 'text-blue-600'
+    },
+    {
+      label: 'Confirmed',
+      value: bookings.filter(b => b.status === BookingStatus.CONFIRMED).length.toString(),
+      icon: 'check_circle',
+      iconBg: 'bg-emerald-50 dark:bg-emerald-900/20',
+      iconColor: 'text-emerald-600'
+    },
+    {
+      label: 'Overdue',
+      value: bookings.filter(b => b.status === BookingStatus.OVERDUE).length.toString(),
+      icon: 'warning',
+      iconBg: 'bg-red-50 dark:bg-red-900/20',
+      iconColor: 'text-red-600'
+    }
+  ];
 
   const getStatusColor = (status: BookingStatus) => {
     switch (status) {
@@ -75,7 +167,7 @@ const Bookings: React.FC = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        {INITIAL_STATS.map((stat, idx) => (
+        {stats.map((stat, idx) => (
           <div key={idx} className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{stat.label}</p>
@@ -85,9 +177,11 @@ const Bookings: React.FC = () => {
             </div>
             <div className="flex items-end gap-2">
               <h3 className="text-3xl font-bold text-slate-900 dark:text-white leading-none">{stat.value}</h3>
-              <span className={`text-xs font-bold ${stat.trendType === 'up' ? 'text-emerald-500' : stat.trendType === 'down' ? 'text-red-500' : 'text-slate-400'}`}>
-                {stat.trend}
-              </span>
+              {stat.trend && (
+                <span className={`text-xs font-bold ${stat.trendType === 'up' ? 'text-emerald-500' : stat.trendType === 'down' ? 'text-red-500' : 'text-slate-400'}`}>
+                  {stat.trend}
+                </span>
+              )}
             </div>
           </div>
         ))}
@@ -98,12 +192,12 @@ const Bookings: React.FC = () => {
         {/* Table Filters */}
         <div className="p-4 md:p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-4 justify-between items-center">
           <div className="flex items-center gap-4 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
+            <div className="relative flex-1 sm:flex-initial">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
               <input
                 type="text"
-                placeholder="Filter bookings..."
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
+                placeholder="Search bookings..."
+                className="w-full sm:w-64 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               />
             </div>
             <button className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors">
@@ -130,65 +224,75 @@ const Bookings: React.FC = () => {
 
         {/* Table Content */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50/50 dark:bg-slate-900/20 text-[11px] uppercase tracking-wider font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
-              <tr>
-                <th className="px-6 py-4">Booking ID</th>
-                <th className="px-6 py-4">Customer</th>
-                <th className="px-6 py-4">Vehicle</th>
-                <th className="px-6 py-4">Duration</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Payment</th>
-                <th className="px-6 py-4 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {DETAILED_BOOKINGS.map((booking) => (
-                <tr key={booking.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                  <td className="px-6 py-5 font-bold text-slate-900 dark:text-white">{booking.bookingId}</td>
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-3">
-                      <img src={booking.customerAvatar} alt="" className="size-9 rounded-full border-2 border-slate-100 dark:border-slate-800" />
-                      <div>
-                        <p className="font-bold text-slate-900 dark:text-white">{booking.customerName}</p>
-                        <p className="text-xs text-slate-400">{booking.customerEmail}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-white">{booking.vehicleName}</p>
-                      <p className="text-xs text-slate-400 uppercase tracking-tighter">{booking.vehicleId}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-white">{booking.startDate} - {booking.endDate}</p>
-                      <p className="text-xs text-slate-400">{booking.durationDays} Days</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <span className={`px-3 py-1 rounded-full text-[11px] font-bold tracking-tight ${getStatusColor(booking.status)}`}>
-                      {booking.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-5">
-                    {getPaymentStatus(booking.paymentStatus)}
-                  </td>
-                  <td className="px-6 py-5 text-center">
-                    <button className="text-slate-400 hover:text-primary transition-colors">
-                      <span className="material-symbols-outlined">more_vert</span>
-                    </button>
-                  </td>
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          ) : bookings.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+              <span className="material-symbols-outlined text-6xl mb-4">event_busy</span>
+              <p className="text-xl font-bold">No bookings found</p>
+              <p>Create a booking to get started.</p>
+            </div>
+          ) : (
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-slate-50/50 dark:bg-slate-900/20 text-[11px] uppercase tracking-wider font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                <tr>
+                  <th className="px-6 py-4">Booking ID</th>
+                  <th className="px-6 py-4">Customer</th>
+                  <th className="px-6 py-4">Vehicle</th>
+                  <th className="px-6 py-4">Duration</th>
+                  <th className="px-6 py-4 text-center">Status</th>
+                  <th className="px-6 py-4">Payment</th>
+                  <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {bookings.map((booking) => (
+                  <tr key={booking.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="px-6 py-5 font-bold text-primary">{booking.bookingId}</td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="size-8 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden ring-2 ring-white dark:ring-slate-700">
+                          <img src={booking.customerAvatar} alt="" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-white leading-none">{booking.customerName}</p>
+                          <p className="text-xs text-slate-500 mt-1">{booking.customerEmail}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <p className="font-bold text-slate-900 dark:text-white leading-none">{booking.vehicleName}</p>
+                      <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">{booking.vehicleId}</p>
+                    </td>
+                    <td className="px-6 py-5">
+                      <p className="font-bold text-slate-900 dark:text-white leading-none">{booking.startDate} - {booking.endDate}</p>
+                      <p className="text-xs text-slate-500 mt-1">{booking.durationDays} days</p>
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                      <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${getStatusColor(booking.status)}`}>
+                        {booking.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5">
+                      {getPaymentStatus(booking.paymentStatus)}
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                      <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                        <span className="material-symbols-outlined">more_vert</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Pagination */}
         <div className="p-4 md:p-6 bg-slate-50/30 dark:bg-slate-900/10 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <p className="text-xs md:text-sm font-medium text-slate-400">Showing 1 to 5 of 142 results</p>
+          <p className="text-xs md:text-sm font-medium text-slate-400">Showing 1 to {bookings.length} of {bookings.length} results</p>
           <div className="flex gap-2">
             <button className="px-4 py-1.5 text-xs md:text-sm font-bold text-slate-500 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50">Previous</button>
             <button className="px-4 py-1.5 text-xs md:text-sm font-bold text-slate-900 dark:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50">Next</button>

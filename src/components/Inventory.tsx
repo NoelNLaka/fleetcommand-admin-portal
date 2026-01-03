@@ -1,10 +1,83 @@
-
-import React, { useState } from 'react';
-import { INVENTORY, INVENTORY_STATS } from '../constants';
-import { VehicleStatus } from '../types';
+import React, { useState, useEffect } from 'react';
+import { INVENTORY_STATS as STATIC_STATS } from '../constants';
+import { VehicleStatus, Vehicle } from '../types';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const Inventory: React.FC = () => {
+  const { profile } = useAuth();
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  const fetchVehicles = async () => {
+    if (!profile?.org_id) return;
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('org_id', profile.org_id);
+
+      if (error) throw error;
+
+      const mappedVehicles: Vehicle[] = (data || []).map(v => ({
+        id: v.id,
+        name: v.name,
+        year: v.year?.toString() || '',
+        trim: v.trim || '',
+        image: v.image_url || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=300',
+        plate: v.plate || '',
+        vin: v.vin || '',
+        status: v.status as VehicleStatus,
+        location: v.location || '',
+        mileage: v.mileage || '0',
+        dailyRate: v.daily_rate || '$0.00'
+      }));
+
+      setVehicles(mappedVehicles);
+    } catch (error) {
+      console.error('Error fetching vehicles:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVehicles();
+  }, [profile?.org_id]);
+
+  const stats = [
+    {
+      label: 'Total Vehicles',
+      value: vehicles.length.toString(),
+      icon: 'directions_car',
+      iconBg: 'bg-blue-50 dark:bg-blue-900/20',
+      iconColor: 'text-blue-600'
+    },
+    {
+      label: 'Available',
+      value: vehicles.filter(v => v.status === VehicleStatus.AVAILABLE).length.toString(),
+      icon: 'check_circle',
+      iconBg: 'bg-emerald-50 dark:bg-emerald-900/20',
+      iconColor: 'text-emerald-600'
+    },
+    {
+      label: 'Rented',
+      value: vehicles.filter(v => v.status === VehicleStatus.RENTED).length.toString(),
+      icon: 'key',
+      iconBg: 'bg-blue-50 dark:bg-blue-900/20',
+      iconColor: 'text-blue-600'
+    },
+    {
+      label: 'Maintenance',
+      value: vehicles.filter(v => v.status === VehicleStatus.MAINTENANCE).length.toString(),
+      icon: 'build',
+      iconBg: 'bg-orange-50 dark:bg-orange-900/20',
+      iconColor: 'text-orange-600'
+    }
+  ];
 
   const getStatusBadge = (status: VehicleStatus) => {
     switch (status) {
@@ -60,7 +133,7 @@ const Inventory: React.FC = () => {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        {INVENTORY_STATS.map((stat, idx) => (
+        {stats.map((stat, idx) => (
           <div key={idx} className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex items-center gap-4">
             <div className={`size-12 rounded-2xl ${stat.iconBg} flex items-center justify-center ${stat.iconColor}`}>
               <span className="material-symbols-outlined text-2xl">{stat.icon}</span>
@@ -117,57 +190,69 @@ const Inventory: React.FC = () => {
       {/* Inventory Table */}
       <div className="border-t border-slate-100 dark:border-slate-800 -mx-4 md:mx-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="text-[11px] uppercase tracking-wider font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
-              <tr>
-                <th className="px-6 py-4">Vehicle</th>
-                <th className="px-6 py-4">Plate & VIN</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Location</th>
-                <th className="px-6 py-4">Mileage</th>
-                <th className="px-6 py-4">Daily Rate</th>
-                <th className="px-6 py-4 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {INVENTORY.map((vehicle) => (
-                <tr key={vehicle.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="size-12 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
-                        <img src={vehicle.image} alt="" className="size-full object-cover" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900 dark:text-white leading-tight">{vehicle.name}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{vehicle.year} • {vehicle.trim}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <p className="font-bold text-slate-900 dark:text-white">{vehicle.plate}</p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">{vehicle.vin}</p>
-                  </td>
-                  <td className="px-6 py-5">
-                    {getStatusBadge(vehicle.status)}
-                  </td>
-                  <td className="px-6 py-5 text-slate-600 dark:text-slate-400 font-medium">
-                    {vehicle.location}
-                  </td>
-                  <td className="px-6 py-5 text-slate-600 dark:text-slate-400 font-medium">
-                    {vehicle.mileage}
-                  </td>
-                  <td className="px-6 py-5 font-bold text-slate-900 dark:text-white">
-                    {vehicle.dailyRate}
-                  </td>
-                  <td className="px-6 py-5 text-center">
-                    <button className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all">
-                      <span className="material-symbols-outlined">more_vert</span>
-                    </button>
-                  </td>
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          ) : vehicles.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+              <span className="material-symbols-outlined text-6xl mb-4">directions_car</span>
+              <p className="text-xl font-bold">No vehicles found</p>
+              <p>Add a vehicle to get started.</p>
+            </div>
+          ) : (
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="text-[11px] uppercase tracking-wider font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                <tr>
+                  <th className="px-6 py-4">Vehicle</th>
+                  <th className="px-6 py-4">Plate & VIN</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Location</th>
+                  <th className="px-6 py-4">Mileage</th>
+                  <th className="px-6 py-4">Daily Rate</th>
+                  <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {vehicles.map((vehicle) => (
+                  <tr key={vehicle.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="size-12 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
+                          <img src={vehicle.image} alt="" className="size-full object-cover" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-white leading-tight">{vehicle.name}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{vehicle.year} • {vehicle.trim}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <p className="font-bold text-slate-900 dark:text-white">{vehicle.plate}</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider">{vehicle.vin}</p>
+                    </td>
+                    <td className="px-6 py-5">
+                      {getStatusBadge(vehicle.status)}
+                    </td>
+                    <td className="px-6 py-5 text-slate-600 dark:text-slate-400 font-medium">
+                      {vehicle.location}
+                    </td>
+                    <td className="px-6 py-5 text-slate-600 dark:text-slate-400 font-medium">
+                      {vehicle.mileage}
+                    </td>
+                    <td className="px-6 py-5 font-bold text-slate-900 dark:text-white">
+                      {vehicle.dailyRate}
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                      <button className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all">
+                        <span className="material-symbols-outlined">more_vert</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 

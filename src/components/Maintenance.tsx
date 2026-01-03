@@ -1,12 +1,87 @@
-
-import React, { useState } from 'react';
-import { MAINTENANCE_STATS, MAINTENANCE_TASKS } from '../constants';
-import { MaintenanceStatus } from '../types';
+import React, { useState, useEffect } from 'react';
+import { MAINTENANCE_STATS as STATIC_STATS, MAINTENANCE_TASKS as STATIC_TASKS } from '../constants';
+import { MaintenanceStatus, MaintenanceTask } from '../types';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const Maintenance: React.FC = () => {
+  const { profile } = useAuth();
+  const [tasks, setTasks] = useState<MaintenanceTask[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('All Tasks');
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>('2'); // Default expand Ford Transit as in design
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  const fetchTasks = async () => {
+    if (!profile?.org_id) return;
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('maintenance_records')
+        .select(`
+  *,
+  vehicle: vehicles(name, vin, image_url)
+        `)
+        .eq('org_id', profile.org_id);
+
+      if (error) throw error;
+
+      const mappedTasks: MaintenanceTask[] = (data || []).map((t: any) => ({
+        id: t.id,
+        vehicleName: t.vehicle?.name || 'Unknown Vehicle',
+        vehicleVin: t.vehicle?.vin || 'N/A',
+        vehicleImage: t.vehicle?.image_url || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=300',
+        serviceType: t.service_type || 'General Maintenance',
+        status: t.status as MaintenanceStatus,
+        assigneeName: 'Service Dept', // Defaulting since not in schema
+        assigneeAvatar: 'https://i.pravatar.cc/150?u=service',
+        costEstimate: t.cost_estimate ? `$${t.cost_estimate.toFixed(2)} ` : '$0.00',
+        currentStep: t.current_step || 'Scheduled',
+        estCompletion: t.completion_date || 'N/A'
+      }));
+
+      setTasks(mappedTasks);
+      if (mappedTasks.length > 0 && !expandedTaskId) {
+        setExpandedTaskId(mappedTasks[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching maintenance tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, [profile?.org_id]);
+
+  const stats = [
+    {
+      label: 'In Shop',
+      value: tasks.filter(t => t.status === MaintenanceStatus.IN_SHOP).length.toString(),
+      trend: '+2',
+      trendType: 'up',
+      icon: 'precision_manufacturing',
+      iconBg: 'bg-blue-50 dark:bg-blue-900/20',
+      iconColor: 'text-blue-600'
+    },
+    {
+      label: 'Scheduled',
+      value: tasks.filter(t => t.status === MaintenanceStatus.SCHEDULED).length.toString(),
+      icon: 'event',
+      iconBg: 'bg-slate-50 dark:bg-slate-800',
+      iconColor: 'text-slate-600'
+    },
+    {
+      label: 'Critical / Overdue',
+      value: tasks.filter(t => t.status === MaintenanceStatus.OVERDUE).length.toString(),
+      subLabel: tasks.filter(t => t.status === MaintenanceStatus.OVERDUE).length > 0 ? 'Action Required' : '',
+      icon: 'warning',
+      iconBg: 'bg-red-50 dark:bg-red-900/20',
+      iconColor: 'text-red-600'
+    }
+  ];
 
   const getStatusBadge = (status: MaintenanceStatus) => {
     switch (status) {
@@ -31,6 +106,13 @@ const Maintenance: React.FC = () => {
             Scheduled
           </span>
         );
+      case MaintenanceStatus.DONE:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 text-xs font-bold rounded-full border border-emerald-100 dark:border-emerald-800">
+            <span className="size-1.5 rounded-full bg-emerald-600"></span>
+            Done
+          </span>
+        );
       default:
         return null;
     }
@@ -42,6 +124,14 @@ const Maintenance: React.FC = () => {
     { id: 'QC Check', icon: 'assignment_turned_in', activeIcon: 'assignment_turned_in' },
     { id: 'Done', icon: 'flag', activeIcon: 'flag' }
   ];
+
+  const filteredTasks = tasks.filter(task => {
+    if (activeTab === 'All Tasks') return true;
+    if (activeTab === 'Upcoming') return task.status === MaintenanceStatus.SCHEDULED;
+    if (activeTab === 'In Progress') return task.status === MaintenanceStatus.IN_SHOP;
+    if (activeTab === 'History') return task.status === MaintenanceStatus.DONE;
+    return true;
+  });
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50/50 dark:bg-background-dark p-4 md:p-8 space-y-8">
@@ -62,14 +152,14 @@ const Maintenance: React.FC = () => {
 
       {/* Summary Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {MAINTENANCE_STATS.map((stat, idx) => (
+        {stats.map((stat, idx) => (
           <div key={idx} className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-sm flex justify-between items-center relative overflow-hidden group hover:shadow-md transition-shadow">
             <div className="space-y-4 relative z-10">
               <p className="text-xs uppercase font-black tracking-widest text-slate-400">{stat.label}</p>
               <div className="flex items-end gap-3">
                 <h3 className="text-4xl font-black text-slate-900 dark:text-white leading-none">{stat.value}</h3>
                 {stat.trend && (
-                  <span className={`text-sm font-bold flex items-center ${stat.trendType === 'up' ? 'text-emerald-500' : 'text-slate-400'}`}>
+                  <span className={`text - sm font - bold flex items - center ${stat.trendType === 'up' ? 'text-emerald-500' : 'text-slate-400'} `}>
                     <span className="material-symbols-outlined text-[16px]">{stat.trendType === 'up' ? 'arrow_upward' : 'trending_down'}</span>
                     {stat.trend}
                   </span>
@@ -79,7 +169,7 @@ const Maintenance: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className={`size-14 rounded-2xl ${stat.iconBg} flex items-center justify-center ${stat.iconColor} shadow-sm`}>
+            <div className={`size - 14 rounded - 2xl ${stat.iconBg} flex items - center justify - center ${stat.iconColor} shadow - sm`}>
               <span className="material-symbols-outlined text-3xl">{stat.icon}</span>
             </div>
             {/* Background Accent */}
@@ -95,150 +185,174 @@ const Maintenance: React.FC = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`whitespace-nowrap px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === tab ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`whitespace - nowrap px - 6 py - 2 text - sm font - bold rounded - lg transition - all ${activeTab === tab ? 'bg-white dark:bg-surface-dark text-slate-900 dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'} `}
             >
               {tab}
             </button>
           ))}
         </div>
-        <div className="relative w-full lg:max-w-md">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
-          <input
-            type="text"
-            placeholder="Search vehicle ID, VIN or service type..."
-            className="w-full pl-12 pr-6 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
-          />
+        <div className="flex items-center gap-4 w-full lg:w-auto">
+          <div className="relative flex-1 lg:flex-initial">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+            <input
+              type="text"
+              placeholder="Search by vehicle or VIN..."
+              className="w-full lg:w-64 pl-10 pr-4 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <button className="p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 transition-colors">
+            <span className="material-symbols-outlined">filter_list</span>
+          </button>
         </div>
       </div>
 
-      {/* Maintenance Table */}
-      <div className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50/50 dark:bg-slate-900/20 text-[10px] uppercase tracking-widest font-black text-slate-400 border-b border-slate-100 dark:border-slate-800">
-              <tr>
-                <th className="px-8 py-6">Vehicle</th>
-                <th className="px-8 py-6">Service Type</th>
-                <th className="px-8 py-6">Status</th>
-                <th className="px-8 py-6">Assignee</th>
-                <th className="px-8 py-6">Cost Estimate</th>
-                <th className="px-8 py-6 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-              {MAINTENANCE_TASKS.map((task) => (
-                <React.Fragment key={task.id}>
-                  <tr
-                    onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
-                    className={`cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all ${expandedTaskId === task.id ? 'bg-slate-50/80 dark:bg-slate-800/50' : ''}`}
-                  >
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-4">
-                        <div className="size-14 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-700">
-                          <img src={task.vehicleImage} alt="" className="size-full object-cover" />
-                        </div>
-                        <div>
-                          <p className="font-black text-slate-900 dark:text-white text-base leading-tight">{task.vehicleName}</p>
-                          <p className="text-xs font-bold text-primary mt-1">{task.vehicleVin}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <p className="font-bold text-slate-700 dark:text-slate-300">{task.serviceType}</p>
-                    </td>
-                    <td className="px-8 py-6">
-                      {getStatusBadge(task.status)}
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-3">
-                        <img src={task.assigneeAvatar} alt="" className="size-8 rounded-xl" />
-                        <span className="font-bold text-slate-600 dark:text-slate-400">{task.assigneeName}</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 font-black text-slate-900 dark:text-white">
-                      {task.costEstimate}
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <button className="p-2 text-slate-400 hover:text-primary transition-all">
-                        <span className="material-symbols-outlined">more_vert</span>
-                      </button>
-                    </td>
-                  </tr>
-
-                  {/* Expanded Detail View */}
-                  {expandedTaskId === task.id && (
-                    <tr className="bg-slate-50/50 dark:bg-slate-800/30">
-                      <td colSpan={6} className="px-8 py-8 border-t border-slate-100 dark:border-slate-800">
-                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
-                          <div className="lg:col-span-3 space-y-8">
-                            <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Service Progress</p>
-                            <div className="relative flex justify-between items-center max-w-2xl">
-                              {/* Connecting line */}
-                              <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-200 dark:bg-slate-700 -translate-y-1/2 -z-10"></div>
-                              <div
-                                className="absolute top-1/2 left-0 h-1 bg-primary -translate-y-1/2 -z-10 transition-all duration-500"
-                                style={{ width: task.currentStep === 'In Shop' ? '33%' : task.currentStep === 'QC Check' ? '66%' : task.currentStep === 'Done' ? '100%' : '0%' }}
-                              ></div>
-
-                              {steps.map((step, idx) => {
-                                const isCompleted = steps.findIndex(s => s.id === task.currentStep) >= idx;
-                                const isActive = step.id === task.currentStep;
-                                return (
-                                  <div key={step.id} className="flex flex-col items-center gap-4">
-                                    <div className={`size-12 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${isCompleted
-                                        ? 'bg-primary border-primary text-white scale-110 shadow-lg shadow-primary/30'
-                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-300'
-                                      }`}>
-                                      <span className={`material-symbols-outlined filled text-xl`}>{step.icon}</span>
-                                    </div>
-                                    <span className={`text-[11px] font-black uppercase tracking-widest ${isCompleted ? 'text-primary' : 'text-slate-400'}`}>
-                                      {step.id}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {task.estCompletion && (
-                              <div className="pt-4 flex items-center gap-2 text-sm text-slate-500 font-bold">
-                                <span className="font-black text-slate-900 dark:text-white">Est. Completion:</span>
-                                <span>{task.estCompletion}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-4 border-l border-slate-200 dark:border-slate-700 pl-12 flex flex-col justify-center">
-                            <button className="flex items-center gap-3 text-sm font-bold text-primary hover:underline group">
-                              <span className="material-symbols-outlined text-xl">description</span>
-                              View Invoice
-                            </button>
-                            <button className="flex items-center gap-3 text-sm font-bold text-primary hover:underline group">
-                              <span className="material-symbols-outlined text-xl">event_repeat</span>
-                              Reschedule
-                            </button>
-                            <button className="flex items-center gap-3 text-sm font-bold text-red-500 hover:underline group">
-                              <span className="material-symbols-outlined text-xl">cancel</span>
-                              Cancel Task
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="p-8 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between">
-          <p className="text-sm font-bold text-slate-400">Showing <span className="text-slate-900 dark:text-white">1</span> to <span className="text-slate-900 dark:text-white">4</span> of <span className="text-slate-900 dark:text-white">12</span> results</p>
-          <div className="flex gap-4">
-            <button className="px-6 py-2.5 text-sm font-black text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 transition-all disabled:opacity-50">Previous</button>
-            <button className="px-6 py-2.5 text-sm font-black text-slate-900 dark:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 transition-all">Next</button>
+      {/* Task List (Accordion Style) */}
+      <div className="space-y-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
-        </div>
+        ) : filteredTasks.length === 0 ? (
+          <div className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-3xl p-20 text-center text-slate-500">
+            <span className="material-symbols-outlined text-6xl mb-4">build_circle</span>
+            <p className="text-xl font-bold">No maintenance tasks found</p>
+            <p>All vehicles are currently in top shape!</p>
+          </div>
+        ) : filteredTasks.map((task) => (
+          <div
+            key={task.id}
+            className={`bg - white dark: bg - surface - dark border transition - all overflow - hidden ${expandedTaskId === task.id ? 'border-primary ring-1 ring-primary/10 rounded-[32px] shadow-xl shadow-primary/5' : 'border-slate-200 dark:border-slate-800 rounded-[24px] hover:border-slate-300 dark:hover:border-slate-700 shadow-sm'} `}
+          >
+            {/* Task Header (Always visible) */}
+            <div
+              onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
+              className="p-6 md:p-8 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-6"
+            >
+              <div className="flex items-center gap-6">
+                <div className="size-20 rounded-2xl bg-slate-100 dark:bg-slate-900 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800">
+                  <img src={task.vehicleImage} alt="" className="size-full object-cover" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <h4 className="text-xl font-black text-slate-900 dark:text-white leading-none">{task.vehicleName}</h4>
+                    {getStatusBadge(task.status)}
+                  </div>
+                  <p className="text-slate-400 font-bold text-sm tracking-tight mb-2 uppercase">{task.vehicleVin}</p>
+                  <div className="flex items-center gap-4">
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-3 py-1 rounded-full border border-slate-100 dark:border-slate-700">
+                      <span className="material-symbols-outlined text-[16px] text-primary">service_toolbox</span>
+                      {task.serviceType}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-8 pl-20 md:pl-0">
+                <div className="text-right hidden sm:block">
+                  <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-1">Est. Completion</p>
+                  <p className="font-black text-slate-900 dark:text-white">{task.estCompletion}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-1">Cost Estimate</p>
+                  <p className="text-lg font-black text-slate-900 dark:text-white leading-none">{task.costEstimate}</p>
+                </div>
+                <div className={`p - 2 rounded - xl border border - slate - 100 dark: border - slate - 800 transition - transform ${expandedTaskId === task.id ? 'rotate-180 bg-primary/5 text-primary border-primary/20' : 'text-slate-400'} `}>
+                  <span className="material-symbols-outlined text-[24px]">expand_more</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Task Detail (Visible when expanded) */}
+            {expandedTaskId === task.id && (
+              <div className="px-6 md:px-8 pb-8 pt-4 border-t border-slate-50 dark:border-slate-800/50 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="max-w-4xl mx-auto">
+                  {/* Progress Tracker */}
+                  <div className="mb-12">
+                    <p className="text-sm font-black text-slate-900 dark:text-white mb-8">Work Progress</p>
+                    <div className="relative flex justify-between items-center px-4">
+                      {/* Progress Line */}
+                      <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-100 dark:bg-slate-800 -translate-y-1/2 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all duration-1000"
+                          style={{
+                            width: task.currentStep === 'Scheduled' ? '0%' :
+                              task.currentStep === 'In Shop' ? '33%' :
+                                task.currentStep === 'QC Check' ? '66%' : '100%'
+                          }}
+                        ></div>
+                      </div>
+
+                      {steps.map((step, idx) => {
+                        const isCompleted = steps.findIndex(s => s.id === task.currentStep) >= idx;
+                        const isActive = task.currentStep === step.id;
+
+                        return (
+                          <div key={step.id} className="relative z-10 flex flex-col items-center gap-3">
+                            <div className={`size - 12 rounded - 2xl flex items - center justify - center transition - all duration - 500 border - 4 dark: border - surface - dark ${isCompleted ? 'bg-primary text-white scale-110 shadow-lg shadow-primary/20' : 'bg-white dark:bg-slate-900 text-slate-300'} `}>
+                              <span className="material-symbols-outlined text-[20px]">{isCompleted ? step.activeIcon : step.icon}</span>
+                            </div>
+                            <p className={`text - [10px] uppercase font - black tracking - widest ${isActive ? 'text-primary' : isCompleted ? 'text-slate-900 dark:text-white' : 'text-slate-400'} `}>
+                              {step.id}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div className="space-y-6">
+                      <div>
+                        <p className="text-sm font-black text-slate-900 dark:text-white mb-3">Service Details</p>
+                        <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-800">
+                          <ul className="space-y-3">
+                            <li className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+                              <span className="material-symbols-outlined text-emerald-500 text-[18px]">check_circle</span>
+                              Oil filter & synthetic engine oil change
+                            </li>
+                            <li className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+                              <span className="material-symbols-outlined text-emerald-500 text-[18px]">check_circle</span>
+                              Full vehicle health check & diagnostic
+                            </li>
+                            <li className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+                              <span className="material-symbols-outlined text-slate-300 text-[18px]">panorama_fish_eye</span>
+                              Brake pad inspection & cleaning
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-black text-slate-900 dark:text-white">Assigned Specialist</p>
+                        <button className="text-primary text-xs font-bold hover:underline">Change</button>
+                      </div>
+                      <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-800">
+                        <img src={task.assigneeAvatar} alt="" className="size-12 rounded-xl bg-slate-200" />
+                        <div>
+                          <p className="font-black text-slate-900 dark:text-white leading-none">{task.assigneeName}</p>
+                          <p className="text-xs text-slate-400 font-bold mt-1">Lead Maintenance Tech</p>
+                        </div>
+                        <button className="ml-auto size-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800 text-slate-400 hover:text-primary hover:border-primary/20 transition-all flex items-center justify-center">
+                          <span className="material-symbols-outlined text-[20px]">chat_bubble</span>
+                        </button>
+                      </div>
+                      <div className="flex gap-3">
+                        <button className="flex-1 py-3 bg-primary text-white font-black text-xs rounded-xl shadow-lg shadow-primary/10 hover:bg-primary/90 transition-all">
+                          AUTHORIZE ADDITIONAL WORK
+                        </button>
+                        <button className="px-4 py-3 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-xs rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-all">
+                          VIEW PDF
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
       {/* Add Maintenance Task Modal */}
       {isAddModalOpen && (
