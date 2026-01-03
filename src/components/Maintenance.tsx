@@ -6,6 +6,7 @@ import { MaintenanceStatus } from '../types';
 const Maintenance: React.FC = () => {
   const [activeTab, setActiveTab] = useState('All Tasks');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>('2'); // Default expand Ford Transit as in design
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const getStatusBadge = (status: MaintenanceStatus) => {
     switch (status) {
@@ -50,7 +51,10 @@ const Maintenance: React.FC = () => {
           <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">Maintenance Overview</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-2 text-lg">Track service history, schedule repairs, and manage fleet health.</p>
         </div>
-        <button className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 self-start md:self-auto">
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 self-start md:self-auto"
+        >
           <span className="material-symbols-outlined text-[20px]">add</span>
           New Maintenance Task
         </button>
@@ -76,7 +80,7 @@ const Maintenance: React.FC = () => {
               </div>
             </div>
             <div className={`size-14 rounded-2xl ${stat.iconBg} flex items-center justify-center ${stat.iconColor} shadow-sm`}>
-               <span className="material-symbols-outlined text-3xl">{stat.icon}</span>
+              <span className="material-symbols-outlined text-3xl">{stat.icon}</span>
             </div>
             {/* Background Accent */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 dark:bg-slate-800/20 rounded-bl-full -mr-12 -mt-12 transition-transform group-hover:scale-110"></div>
@@ -98,12 +102,12 @@ const Maintenance: React.FC = () => {
           ))}
         </div>
         <div className="relative w-full lg:max-w-md">
-           <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
-           <input 
-             type="text" 
-             placeholder="Search vehicle ID, VIN or service type..."
-             className="w-full pl-12 pr-6 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
-           />
+          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+          <input
+            type="text"
+            placeholder="Search vehicle ID, VIN or service type..."
+            className="w-full pl-12 pr-6 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+          />
         </div>
       </div>
 
@@ -124,7 +128,7 @@ const Maintenance: React.FC = () => {
             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
               {MAINTENANCE_TASKS.map((task) => (
                 <React.Fragment key={task.id}>
-                  <tr 
+                  <tr
                     onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                     className={`cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all ${expandedTaskId === task.id ? 'bg-slate-50/80 dark:bg-slate-800/50' : ''}`}
                   >
@@ -160,62 +164,61 @@ const Maintenance: React.FC = () => {
                       </button>
                     </td>
                   </tr>
-                  
+
                   {/* Expanded Detail View */}
                   {expandedTaskId === task.id && (
                     <tr className="bg-slate-50/50 dark:bg-slate-800/30">
                       <td colSpan={6} className="px-8 py-8 border-t border-slate-100 dark:border-slate-800">
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
                           <div className="lg:col-span-3 space-y-8">
-                             <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Service Progress</p>
-                             <div className="relative flex justify-between items-center max-w-2xl">
-                               {/* Connecting line */}
-                               <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-200 dark:bg-slate-700 -translate-y-1/2 -z-10"></div>
-                               <div 
-                                 className="absolute top-1/2 left-0 h-1 bg-primary -translate-y-1/2 -z-10 transition-all duration-500" 
-                                 style={{ width: task.currentStep === 'In Shop' ? '33%' : task.currentStep === 'QC Check' ? '66%' : task.currentStep === 'Done' ? '100%' : '0%' }}
-                               ></div>
+                            <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Service Progress</p>
+                            <div className="relative flex justify-between items-center max-w-2xl">
+                              {/* Connecting line */}
+                              <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-200 dark:bg-slate-700 -translate-y-1/2 -z-10"></div>
+                              <div
+                                className="absolute top-1/2 left-0 h-1 bg-primary -translate-y-1/2 -z-10 transition-all duration-500"
+                                style={{ width: task.currentStep === 'In Shop' ? '33%' : task.currentStep === 'QC Check' ? '66%' : task.currentStep === 'Done' ? '100%' : '0%' }}
+                              ></div>
 
-                               {steps.map((step, idx) => {
-                                 const isCompleted = steps.findIndex(s => s.id === task.currentStep) >= idx;
-                                 const isActive = step.id === task.currentStep;
-                                 return (
-                                   <div key={step.id} className="flex flex-col items-center gap-4">
-                                     <div className={`size-12 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${
-                                       isCompleted 
-                                       ? 'bg-primary border-primary text-white scale-110 shadow-lg shadow-primary/30' 
-                                       : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-300'
-                                     }`}>
-                                       <span className={`material-symbols-outlined filled text-xl`}>{step.icon}</span>
-                                     </div>
-                                     <span className={`text-[11px] font-black uppercase tracking-widest ${isCompleted ? 'text-primary' : 'text-slate-400'}`}>
-                                       {step.id}
-                                     </span>
-                                   </div>
-                                 );
-                               })}
-                             </div>
-                             
-                             {task.estCompletion && (
-                               <div className="pt-4 flex items-center gap-2 text-sm text-slate-500 font-bold">
-                                 <span className="font-black text-slate-900 dark:text-white">Est. Completion:</span>
-                                 <span>{task.estCompletion}</span>
-                               </div>
-                             )}
+                              {steps.map((step, idx) => {
+                                const isCompleted = steps.findIndex(s => s.id === task.currentStep) >= idx;
+                                const isActive = step.id === task.currentStep;
+                                return (
+                                  <div key={step.id} className="flex flex-col items-center gap-4">
+                                    <div className={`size-12 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${isCompleted
+                                        ? 'bg-primary border-primary text-white scale-110 shadow-lg shadow-primary/30'
+                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-300'
+                                      }`}>
+                                      <span className={`material-symbols-outlined filled text-xl`}>{step.icon}</span>
+                                    </div>
+                                    <span className={`text-[11px] font-black uppercase tracking-widest ${isCompleted ? 'text-primary' : 'text-slate-400'}`}>
+                                      {step.id}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {task.estCompletion && (
+                              <div className="pt-4 flex items-center gap-2 text-sm text-slate-500 font-bold">
+                                <span className="font-black text-slate-900 dark:text-white">Est. Completion:</span>
+                                <span>{task.estCompletion}</span>
+                              </div>
+                            )}
                           </div>
-                          
+
                           <div className="space-y-4 border-l border-slate-200 dark:border-slate-700 pl-12 flex flex-col justify-center">
                             <button className="flex items-center gap-3 text-sm font-bold text-primary hover:underline group">
-                               <span className="material-symbols-outlined text-xl">description</span>
-                               View Invoice
+                              <span className="material-symbols-outlined text-xl">description</span>
+                              View Invoice
                             </button>
                             <button className="flex items-center gap-3 text-sm font-bold text-primary hover:underline group">
-                               <span className="material-symbols-outlined text-xl">event_repeat</span>
-                               Reschedule
+                              <span className="material-symbols-outlined text-xl">event_repeat</span>
+                              Reschedule
                             </button>
                             <button className="flex items-center gap-3 text-sm font-bold text-red-500 hover:underline group">
-                               <span className="material-symbols-outlined text-xl">cancel</span>
-                               Cancel Task
+                              <span className="material-symbols-outlined text-xl">cancel</span>
+                              Cancel Task
                             </button>
                           </div>
                         </div>
@@ -237,6 +240,96 @@ const Maintenance: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* Add Maintenance Task Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsAddModalOpen(false)}
+          ></div>
+
+          <div className="relative bg-white dark:bg-surface-dark w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="px-5 py-4 md:px-8 md:py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">New Maintenance Task</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Schedule a new service or repair task.</p>
+              </div>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <div className="px-5 py-6 md:px-8 md:py-8 overflow-y-auto max-h-[calc(100vh-200px)]">
+              <form className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Vehicle & Service Info */}
+                  <div className="md:col-span-2 space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Task Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Vehicle</label>
+                        <input type="text" placeholder="e.g. Ford Transit - VIN 8392" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Service Type</label>
+                        <input type="text" placeholder="e.g. Oil Change" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Status</label>
+                        <select className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none">
+                          <option value={MaintenanceStatus.SCHEDULED}>Scheduled</option>
+                          <option value={MaintenanceStatus.IN_SHOP}>In Shop</option>
+                          <option value={MaintenanceStatus.OVERDUE}>Overdue</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Logistics */}
+                  <div className="md:col-span-2 pt-4 space-y-4 border-t border-slate-50 dark:border-slate-800">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Logistics & Cost</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Assignee</label>
+                        <input type="text" placeholder="e.g. John Mechanic" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Cost Estimate ($)</label>
+                        <input type="text" placeholder="150.00" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Scheduled Date</label>
+                        <input type="date" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-4 md:px-8 md:py-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-6 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-8 py-2.5 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+              >
+                Create Task
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

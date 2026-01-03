@@ -5,6 +5,7 @@ import { BookingStatus, PaymentStatus } from '../types';
 
 const Bookings: React.FC = () => {
   const [viewMode, setViewMode] = useState<'List' | 'Calendar'>('List');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const getStatusColor = (status: BookingStatus) => {
     switch (status) {
@@ -61,7 +62,10 @@ const Bookings: React.FC = () => {
               <span className="material-symbols-outlined text-[20px]">upload</span>
               Export
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg hover:bg-primary/90 transition-all shadow-sm">
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg hover:bg-primary/90 transition-all shadow-sm"
+            >
               <span className="material-symbols-outlined text-[20px]">add</span>
               New Booking
             </button>
@@ -96,8 +100,8 @@ const Bookings: React.FC = () => {
           <div className="flex items-center gap-4 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Filter bookings..."
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
               />
@@ -107,14 +111,14 @@ const Bookings: React.FC = () => {
             </button>
           </div>
           <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 w-full sm:w-auto">
-            <button 
+            <button
               onClick={() => setViewMode('List')}
               className={`flex-1 sm:flex-none flex items-center gap-2 px-4 py-1.5 text-sm font-semibold rounded-lg transition-all ${viewMode === 'List' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400'}`}
             >
               <span className="material-symbols-outlined text-[18px]">list</span>
               List
             </button>
-            <button 
+            <button
               onClick={() => setViewMode('Calendar')}
               className={`flex-1 sm:flex-none flex items-center gap-2 px-4 py-1.5 text-sm font-semibold rounded-lg transition-all ${viewMode === 'Calendar' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400'}`}
             >
@@ -191,6 +195,104 @@ const Bookings: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* Add Booking Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsAddModalOpen(false)}
+          ></div>
+
+          <div className="relative bg-white dark:bg-surface-dark w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="px-5 py-4 md:px-8 md:py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">New Booking</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Create a new reservation for a customer.</p>
+              </div>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <div className="px-5 py-6 md:px-8 md:py-8 overflow-y-auto max-h-[calc(100vh-200px)]">
+              <form className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Customer Info */}
+                  <div className="md:col-span-2 space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Customer Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Customer Name</label>
+                        <input type="text" placeholder="e.g. Alice Smith" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Email Address</label>
+                        <input type="email" placeholder="alice@example.com" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Reservation Info */}
+                  <div className="md:col-span-2 pt-4 space-y-4 border-t border-slate-50 dark:border-slate-800">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Reservation Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Vehicle</label>
+                        <input type="text" placeholder="e.g. Tesla Model 3" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Start Date</label>
+                        <input type="date" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">End Date</label>
+                        <input type="date" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Booking Status</label>
+                        <select className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none">
+                          <option value={BookingStatus.ACTIVE}>Active</option>
+                          <option value={BookingStatus.PENDING_PICKUP}>Pending Pickup</option>
+                          <option value={BookingStatus.CONFIRMED}>Confirmed</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Payment Status</label>
+                        <select className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none">
+                          <option value={PaymentStatus.PAID}>Paid</option>
+                          <option value={PaymentStatus.UNPAID}>Unpaid</option>
+                          <option value={PaymentStatus.PARTIAL}>Partial</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-4 md:px-8 md:py-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-6 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-8 py-2.5 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+              >
+                Create Booking
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
