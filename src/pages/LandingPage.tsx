@@ -1,7 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { redirectToCheckout } from '../lib/stripe';
 
 const LandingPage: React.FC = () => {
+    const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+
+    const handleCheckout = async (planType: 'starter' | 'pro') => {
+        setLoadingPlan(planType);
+        try {
+            await redirectToCheckout(planType);
+        } catch (error) {
+            console.error('Checkout error:', error);
+            alert('Failed to start checkout. Please try again.');
+            setLoadingPlan(null);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col">
             <header className="px-6 md:px-20 lg:px-32 py-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-md sticky top-0 z-50">
@@ -79,7 +93,8 @@ const LandingPage: React.FC = () => {
                                     desc: 'Perfect for small business owners and startups.',
                                     features: ['5 Vehicles', 'Basic Analytics', 'Standard Reports', 'Email Support'],
                                     button: 'Start Free Trial',
-                                    popular: false
+                                    popular: false,
+                                    planType: 'starter' as const
                                 },
                                 {
                                     name: 'Pro',
@@ -88,7 +103,8 @@ const LandingPage: React.FC = () => {
                                     desc: 'Advanced tools for growing fleets and operations.',
                                     features: ['20 Vehicles', 'Predictive Maintenance', 'Live GPS Tracking', 'Priority Support', 'Advanced Analytics'],
                                     button: 'Go Professional',
-                                    popular: true
+                                    popular: true,
+                                    planType: 'pro' as const
                                 },
                                 {
                                     name: 'Enterprise',
@@ -97,7 +113,8 @@ const LandingPage: React.FC = () => {
                                     desc: 'Full-scale solution for large industrial fleets.',
                                     features: ['Unlimited Vehicles', 'Dedicated Account Manager', 'Custom Integrations', '24/7 Phone Support', 'API Access', 'White-labeling'],
                                     button: 'Talk to Sales',
-                                    popular: false
+                                    popular: false,
+                                    planType: null
                                 }
                             ].map((plan, i) => (
                                 <div
@@ -133,12 +150,14 @@ const LandingPage: React.FC = () => {
                                     </ul>
 
                                     <button
-                                        className={`w-full py-4 rounded-2xl font-black transition-all active:scale-95 ${plan.popular
+                                        onClick={() => plan.planType && handleCheckout(plan.planType)}
+                                        disabled={loadingPlan !== null}
+                                        className={`w-full py-4 rounded-2xl font-black transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${plan.popular
                                                 ? 'bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25 hover:shadow-primary/40'
                                                 : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-900 dark:text-white'
                                             }`}
                                     >
-                                        {plan.button}
+                                        {loadingPlan === plan.planType ? 'Loading...' : plan.button}
                                     </button>
                                 </div>
                             ))}

@@ -12,6 +12,7 @@ import Reports from './components/Reports';
 import Settings from './components/Settings';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import SuccessPage from './pages/SuccessPage';
 
 // Protected Layout Component
 const ProtectedLayout: React.FC = () => {
@@ -82,6 +83,7 @@ const App: React.FC = () => {
         <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/success" element={<SuccessPage />} />
 
             {/* Protected Routes */}
             <Route element={<ProtectedLayout />}>
