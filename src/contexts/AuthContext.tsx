@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
+import { UserRole } from '../types';
 
 interface Profile {
     id: string;
     org_id: string;
     full_name: string | null;
     avatar_url: string | null;
-    role: string;
+    role: UserRole;
 }
 
 interface AuthContextType {
@@ -27,46 +28,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
 
     const fetchProfile = async (userId: string) => {
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
+        try {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
 
-        if (error) {
-            console.error('Error fetching profile:', error);
+            if (error) {
+                // If it's a 406 (Not Acceptable) it means no record was found
+                if (error.code !== 'PGRST116') {
+                    console.error('Error fetching profile:', error);
+                }
+                setProfile(null);
+            } else {
+                setProfile(data);
+            }
+        } catch (err) {
+            console.error('Unexpected error fetching profile:', err);
             setProfile(null);
-        } else {
-            setProfile(data);
+        } finally {
+            setLoading(false);
         }
     };
 
     useEffect(() => {
-        // Check active sessions and sets the user
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
+        // Consolidated listener: Handles initial session and subsequent changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             const currentUser = session?.user ?? null;
+            setSession(session);
             setUser(currentUser);
-            if (currentUser) {
-                fetchProfile(currentUser.id);
-            }
-            setLoading(false);
-        });
 
-        // Listen for changes on auth state (sign in, sign out, etc.)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-            const currentUser = session?.user ?? null;
-            setUser(currentUser);
             if (currentUser) {
-                fetchProfile(currentUser.id);
+                // Only start loading if we don't already have the profile or if it's a new session
+                // This prevents redundant fetches on minor auth state changes (like TOKEN_REFRESHED)
+                if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+                    console.log(`[Auth] ${event} event received. Fetching profile for ${currentUser.email}...`);
+                    setLoading(true);
+                    console.time('Fetch Profile');
+                    await fetchProfile(currentUser.id);
+                    console.timeEnd('Fetch Profile');
+                } else if (!profile) {
+                    console.log(`[Auth] No profile found but user exists. Fetching profile...`);
+                    console.time('Fetch Profile');
+                    await fetchProfile(currentUser.id);
+                    console.timeEnd('Fetch Profile');
+                } else {
+                    setLoading(false);
+                }
             } else {
                 setProfile(null);
+                setLoading(false);
             }
-            setLoading(false);
         });
 
-        return () => subscription.unsubscribe();
+        return () => {
+            subscription.unsubscribe();
+        };
     }, []);
 
     const value = {

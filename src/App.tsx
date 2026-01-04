@@ -13,10 +13,31 @@ import Settings from './components/Settings';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import SuccessPage from './pages/SuccessPage';
+import { UserRole } from './types';
+
+// Role-based Route Guard
+const RoleRoute: React.FC<{ allowedRoles: UserRole[], children: React.ReactNode }> = ({ allowedRoles, children }) => {
+    const { profile, loading } = useAuth();
+
+    if (loading) return null; // Let the main loader handle it
+
+    if (!profile || !allowedRoles.includes(profile.role as UserRole)) {
+        // Redirect to their default page based on role
+        if (profile?.role === UserRole.WORKSHOP_SUPERVISOR || profile?.role === UserRole.MECHANIC) {
+            return <Navigate to="/inventory" replace />;
+        }
+        if (profile?.role === UserRole.CLIENT_OFFICER) {
+            return <Navigate to="/bookings" replace />;
+        }
+        return <Navigate to="/" replace />;
+    }
+
+    return <>{children}</>;
+};
 
 // Protected Layout Component
 const ProtectedLayout: React.FC = () => {
-    const { user, loading } = useAuth();
+    const { user, loading, profile } = useAuth();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
     const location = useLocation();
 
@@ -30,6 +51,17 @@ const ProtectedLayout: React.FC = () => {
 
     if (!user) {
         return <Navigate to="/login" replace />;
+    }
+
+    // Redirect users from protected root to their default page based on role
+    if (location.pathname === '/' || location.pathname === '') {
+        if (profile?.role === UserRole.WORKSHOP_SUPERVISOR || profile?.role === UserRole.MECHANIC) {
+            return <Navigate to="/inventory" replace />;
+        }
+        if (profile?.role === UserRole.CLIENT_OFFICER) {
+            return <Navigate to="/bookings" replace />;
+        }
+        return <Navigate to="/dashboard" replace />;
     }
 
     const getPageTitle = () => {
@@ -87,15 +119,39 @@ const App: React.FC = () => {
 
             {/* Protected Routes */}
             <Route element={<ProtectedLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/inventory" element={<Inventory />} />
-                <Route path="/customers" element={<Customers />} />
-                <Route path="/bookings" element={<Bookings />} />
-                <Route path="/maintenance" element={<Maintenance />} />
-                <Route path="/reports" element={<Reports />} />
+                <Route path="/dashboard" element={
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN]}>
+                        <Dashboard />
+                    </RoleRoute>
+                } />
+                <Route path="/inventory" element={
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC]}>
+                        <Inventory />
+                    </RoleRoute>
+                } />
+                <Route path="/customers" element={
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER]}>
+                        <Customers />
+                    </RoleRoute>
+                } />
+                <Route path="/bookings" element={
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER]}>
+                        <Bookings />
+                    </RoleRoute>
+                } />
+                <Route path="/maintenance" element={
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC]}>
+                        <Maintenance />
+                    </RoleRoute>
+                } />
+                <Route path="/reports" element={
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN]}>
+                        <Reports />
+                    </RoleRoute>
+                } />
                 <Route path="/settings" element={<Settings />} />
-                {/* Placeholder for future routes */}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                {/* Catch-all for protected area */}
+                <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
         </Routes>
     );

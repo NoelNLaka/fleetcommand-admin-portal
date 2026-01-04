@@ -7,6 +7,14 @@ export enum BookingStatus {
   CONFIRMED = 'Confirmed'
 }
 
+export enum UserRole {
+  SUPERADMIN = 'Superadmin',
+  ADMIN = 'Admin',
+  CLIENT_OFFICER = 'Client Officer',
+  WORKSHOP_SUPERVISOR = 'Workshop supervisor',
+  MECHANIC = 'Mechanic'
+}
+
 export enum PaymentStatus {
   PAID = 'Paid',
   UNPAID = 'Unpaid',

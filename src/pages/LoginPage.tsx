@@ -15,14 +15,18 @@ const LoginPage: React.FC = () => {
         setError(null);
 
         try {
+            console.time('Supabase SignIn');
             const { error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
+            console.timeEnd('Supabase SignIn');
 
             if (error) throw error;
+            console.log('Login successful, navigating to dashboard...');
             navigate('/dashboard');
         } catch (err: any) {
+            console.error('Login error:', err);
             setError(err.message || 'An error occurred during login');
         } finally {
             setLoading(false);
