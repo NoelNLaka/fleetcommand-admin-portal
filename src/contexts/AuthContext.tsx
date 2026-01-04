@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
 import { UserRole } from '../types';
@@ -26,63 +26,104 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [session, setSession] = useState<Session | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
+    const fetchingRef = useRef(false);
 
     const fetchProfile = async (userId: string) => {
+        // Prevent duplicate fetches
+        if (fetchingRef.current) {
+            console.log('[Auth] Profile fetch already in progress, skipping...');
+            return;
+        }
+
+        fetchingRef.current = true;
+        console.log('[Auth] Fetching profile...');
+
         try {
-            const { data, error } = await supabase
+            console.log('[Auth] Querying profiles table for userId:', userId);
+
+            // Add timeout to prevent hanging
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Profile fetch timeout after 10s')), 10000)
+            );
+
+            const queryPromise = supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', userId)
-                .single();
+                .maybeSingle();
+
+            const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as Awaited<typeof queryPromise>;
+
+            console.log('[Auth] Profile query result:', { data, error });
 
             if (error) {
-                // If it's a 406 (Not Acceptable) it means no record was found
-                if (error.code !== 'PGRST116') {
-                    console.error('Error fetching profile:', error);
-                }
+                console.error('[Auth] Profile fetch error:', error.code, error.message);
                 setProfile(null);
-            } else {
+            } else if (data) {
+                console.log('[Auth] Profile loaded successfully:', data?.role);
                 setProfile(data);
+            } else {
+                console.warn('[Auth] No profile found for user - may need to create one');
+                setProfile(null);
             }
         } catch (err) {
-            console.error('Unexpected error fetching profile:', err);
+            console.error('[Auth] Unexpected error fetching profile:', err);
             setProfile(null);
         } finally {
+            console.log('[Auth] Profile fetch complete, setting loading to false');
             setLoading(false);
+            fetchingRef.current = false;
         }
     };
 
     useEffect(() => {
-        // Consolidated listener: Handles initial session and subsequent changes
+        let isMounted = true;
+        let lastUserId: string | null = null;
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (!isMounted) return;
+
             const currentUser = session?.user ?? null;
+            console.log(`[Auth] Event: ${event}, userId: ${currentUser?.id?.slice(0, 8) || 'none'}, lastUserId: ${lastUserId?.slice(0, 8) || 'none'}`);
+
+            // Ignore SIGNED_OUT if we still have a session (spurious event)
+            if (event === 'SIGNED_OUT' && session?.user) {
+                console.log('[Auth] Ignoring spurious SIGNED_OUT - session still active');
+                return;
+            }
+
             setSession(session);
             setUser(currentUser);
 
             if (currentUser) {
-                // Only start loading if we don't already have the profile or if it's a new session
-                // This prevents redundant fetches on minor auth state changes (like TOKEN_REFRESHED)
-                if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-                    console.log(`[Auth] ${event} event received. Fetching profile for ${currentUser.email}...`);
+                const isNewUser = lastUserId !== currentUser.id;
+
+                if (event === 'INITIAL_SESSION' || (event === 'SIGNED_IN' && isNewUser)) {
+                    console.log(`[Auth] ${event} for ${currentUser.email} - fetching profile`);
+                    lastUserId = currentUser.id;
                     setLoading(true);
-                    console.time('Fetch Profile');
                     await fetchProfile(currentUser.id);
-                    console.timeEnd('Fetch Profile');
-                } else if (!profile) {
-                    console.log(`[Auth] No profile found but user exists. Fetching profile...`);
-                    console.time('Fetch Profile');
-                    await fetchProfile(currentUser.id);
-                    console.timeEnd('Fetch Profile');
+                } else if (event === 'SIGNED_IN' && !isNewUser) {
+                    // Same user, profile already loaded
+                    console.log(`[Auth] ${event} for ${currentUser.email} - same user, keeping profile`);
+                    setLoading(false);
+                } else if (event === 'TOKEN_REFRESHED') {
+                    console.log(`[Auth] Token refreshed for ${currentUser.email}`);
+                    setLoading(false);
                 } else {
                     setLoading(false);
                 }
             } else {
+                // Actually signed out
+                console.log('[Auth] User signed out');
+                lastUserId = null;
                 setProfile(null);
                 setLoading(false);
             }
         });
 
         return () => {
+            isMounted = false;
             subscription.unsubscribe();
         };
     }, []);

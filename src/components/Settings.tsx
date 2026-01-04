@@ -25,15 +25,21 @@ const Settings: React.FC = () => {
     useEffect(() => {
         const fetchOrgInfo = async () => {
             if (!profile?.org_id) return;
-            const { data, error } = await supabase
-                .from('organizations')
-                .select('name, plan_name')
-                .eq('id', profile.org_id)
-                .single();
+            try {
+                const { data, error } = await supabase
+                    .from('organizations')
+                    .select('name, plan_name')
+                    .eq('id', profile.org_id)
+                    .single();
 
-            if (!error && data) {
-                setOrgInfo(data);
-                setOrgData(prev => ({ ...prev, name: data.name }));
+                if (!error && data) {
+                    setOrgInfo(data);
+                    setOrgData(prev => ({ ...prev, name: data.name }));
+                }
+                // Silently ignore errors - organizations table may not exist yet
+            } catch (err) {
+                // Silently handle - table may not exist
+                console.debug('Organizations table not available:', err);
             }
         };
 

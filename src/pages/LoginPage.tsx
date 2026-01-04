@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const LoginPage: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -8,6 +9,29 @@ const LoginPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const navigate = useNavigate();
+    const { user, profile, loading: authLoading } = useAuth();
+
+    // Redirect when user is authenticated AND profile is loaded
+    useEffect(() => {
+        if (user && profile && !authLoading) {
+            console.log('User authenticated with profile, redirecting based on role:', profile.role);
+            // Redirect to role-appropriate page
+            switch (profile.role) {
+                case 'Workshop supervisor':
+                case 'Mechanic':
+                    navigate('/inventory', { replace: true });
+                    break;
+                case 'Client Officer':
+                    navigate('/bookings', { replace: true });
+                    break;
+                case 'Superadmin':
+                case 'Admin':
+                default:
+                    navigate('/dashboard', { replace: true });
+                    break;
+            }
+        }
+    }, [user, profile, authLoading, navigate]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -23,14 +47,14 @@ const LoginPage: React.FC = () => {
             console.timeEnd('Supabase SignIn');
 
             if (error) throw error;
-            console.log('Login successful, navigating to dashboard...');
-            navigate('/dashboard');
+            // Don't navigate here - let the useEffect handle it after profile loads
+            console.log('Login successful, waiting for profile to load...');
         } catch (err: any) {
             console.error('Login error:', err);
             setError(err.message || 'An error occurred during login');
-        } finally {
             setLoading(false);
         }
+        // Don't set loading to false on success - keep showing loading until redirect
     };
 
     return (
