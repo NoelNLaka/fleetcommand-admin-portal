@@ -41,6 +41,18 @@ export enum MaintenanceStatus {
   DONE = 'Done'
 }
 
+export enum InsuranceRecordType {
+  INSURANCE = 'insurance',
+  REGISTRATION = 'registration',
+  SAFETY_STICKER = 'safety_sticker'
+}
+
+export enum InsuranceStatus {
+  VALID = 'VALID',
+  EXPIRING_SOON = 'EXPIRING_SOON',
+  EXPIRED = 'EXPIRED'
+}
+
 export interface Vehicle {
   id: string;
   name: string;
@@ -130,6 +142,25 @@ export interface MaintenanceTask {
   costEstimate: string;
   currentStep?: 'Scheduled' | 'In Shop' | 'QC Check' | 'Done';
   estCompletion?: string;
+  arrivalMileage?: number;
+  notes?: string;
+}
+
+export interface InsuranceRecord {
+  id: string;
+  vehicleId: string;
+  vehicleName: string;
+  vehiclePlate: string;
+  vehicleImage?: string;
+  recordType: InsuranceRecordType;
+  dateRenewed: string;
+  expiryDate: string;
+  provider?: string;
+  policyNumber?: string;
+  cost?: number;
+  notes?: string;
+  status: InsuranceStatus;
+  daysUntilExpiry: number;
 }
 
 export interface MaintenanceItem {

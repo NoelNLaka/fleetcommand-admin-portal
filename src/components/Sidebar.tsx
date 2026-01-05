@@ -22,6 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = "", onMobileItemClick }) 
         { id: 'inventory', label: 'Fleet', icon: 'directions_car', path: '/inventory', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC] },
         { id: 'bookings', label: 'Bookings', icon: 'book_online', path: '/bookings', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER] },
         { id: 'maintenance', label: 'Maintenance', icon: 'handyman', path: '/maintenance', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC] },
+        { id: 'insurance', label: 'Insurance', icon: 'shield', path: '/insurance', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR] },
         { id: 'reports', label: 'Reports', icon: 'bar_chart', path: '/reports', roles: [UserRole.SUPERADMIN, UserRole.ADMIN] },
         { id: 'customers', label: 'Customers', icon: 'group', path: '/customers', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER] },
     ];

@@ -8,6 +8,7 @@ import Customers from './components/Customers';
 import Bookings from './components/Bookings';
 import Inventory from './components/Inventory';
 import Maintenance from './components/Maintenance';
+import Insurance from './components/Insurance';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
 import LandingPage from './pages/LandingPage';
@@ -68,6 +69,7 @@ const ProtectedLayout: React.FC = () => {
         const path = location.pathname.split('/')[1];
         switch (path) {
             case 'maintenance': return 'Maintenance Scheduling';
+            case 'insurance': return 'Insurance & Registration';
             case 'reports': return 'Reports Dashboard';
             case 'dashboard': return 'Fleet Analytics';
             case 'bookings': return 'Booking Management';
@@ -142,6 +144,11 @@ const App: React.FC = () => {
                 <Route path="/maintenance" element={
                     <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC]}>
                         <Maintenance />
+                    </RoleRoute>
+                } />
+                <Route path="/insurance" element={
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR]}>
+                        <Insurance />
                     </RoleRoute>
                 } />
                 <Route path="/reports" element={
