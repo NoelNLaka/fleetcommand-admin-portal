@@ -10,6 +10,7 @@ import Inventory from './components/Inventory';
 import Maintenance from './components/Maintenance';
 import Insurance from './components/Insurance';
 import Reports from './components/Reports';
+import Staff from './components/Staff';
 import Settings from './components/Settings';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
@@ -71,6 +72,7 @@ const ProtectedLayout: React.FC = () => {
             case 'maintenance': return 'Maintenance Scheduling';
             case 'insurance': return 'Insurance & Registration';
             case 'reports': return 'Reports Dashboard';
+            case 'staff': return 'Staff Management';
             case 'dashboard': return 'Fleet Analytics';
             case 'bookings': return 'Booking Management';
             case 'inventory': return 'Fleet Inventory';
@@ -154,6 +156,11 @@ const App: React.FC = () => {
                 <Route path="/reports" element={
                     <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN]}>
                         <Reports />
+                    </RoleRoute>
+                } />
+                <Route path="/staff" element={
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN]}>
+                        <Staff />
                     </RoleRoute>
                 } />
                 <Route path="/settings" element={<Settings />} />

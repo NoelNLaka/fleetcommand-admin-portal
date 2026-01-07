@@ -11,12 +11,15 @@
   "dependencies": {
     "@stripe/stripe-js": "^8.6.0",
     "@supabase/supabase-js": "^2.89.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-router-dom": "^7.11.0"
+    "react-router-dom": "^7.11.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "pwa-asset-generator": "^8.1.2",
     "sharp": "^0.34.5",

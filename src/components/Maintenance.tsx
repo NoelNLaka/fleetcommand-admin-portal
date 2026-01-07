@@ -10,6 +10,24 @@ const Maintenance: React.FC = () => {
   const [activeTab, setActiveTab] = useState('All Tasks');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
+  const emptyTask = {
+    vehicle_id: '',
+    staff_id: '',
+    service_type: '',
+    status: MaintenanceStatus.SCHEDULED,
+    cost_estimate: '',
+    scheduled_date: '',
+    work_order_number: ''
+  };
+
+  const [newTask, setNewTask] = useState(emptyTask);
 
   const fetchTasks = async () => {
     if (!profile?.org_id) return;
@@ -20,7 +38,8 @@ const Maintenance: React.FC = () => {
         .from('maintenance_records')
         .select(`
           *,
-          vehicle: vehicles(name, vin, image_url)
+          vehicle: vehicles(name, vin, image_url),
+          assigned_staff: staff(id, first_name, last_name)
         `)
         .eq('org_id', profile.org_id);
 
@@ -35,15 +54,19 @@ const Maintenance: React.FC = () => {
         else if (dbStatus === 'done' || dbStatus === 'completed') normalizedStatus = MaintenanceStatus.DONE;
         else normalizedStatus = MaintenanceStatus.SCHEDULED;
 
+        const staffName = t.assigned_staff ? `${t.assigned_staff.first_name} ${t.assigned_staff.last_name}` : (t.assignee_name || 'Service Dept');
+
         return {
           id: t.id,
+          workOrderNumber: t.work_order_number || 'N/A',
+          staffId: t.staff_id,
           vehicleName: t.vehicle?.name || 'Unknown Vehicle',
           vehicleVin: t.vehicle?.vin || 'N/A',
           vehicleImage: t.vehicle?.image_url || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=300',
           serviceType: t.service_type || 'General Maintenance',
           status: normalizedStatus,
-          assigneeName: t.assignee_name || 'Service Dept',
-          assigneeAvatar: `https://i.pravatar.cc/150?u=${t.assignee_name || 'service'}`,
+          assigneeName: staffName,
+          assigneeAvatar: `https://i.pravatar.cc/150?u=${staffName}`,
           costEstimate: t.cost_estimate ? (t.cost_estimate.startsWith('$') ? t.cost_estimate : `$${parseFloat(t.cost_estimate).toFixed(2)}`) : '$0.00',
           currentStep: t.current_step || (normalizedStatus === MaintenanceStatus.DONE ? 'Done' : normalizedStatus === MaintenanceStatus.IN_SHOP ? 'In Shop' : 'Scheduled'),
           estCompletion: t.scheduled_date || 'N/A'
@@ -58,9 +81,165 @@ const Maintenance: React.FC = () => {
     }
   };
 
+  const fetchVehicles = async () => {
+    if (!profile?.org_id) return;
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('id, name, plate')
+        .eq('org_id', profile.org_id);
+      if (error) throw error;
+      setVehicles(data || []);
+    } catch (error) {
+      console.error('Error fetching vehicles:', error);
+    }
+  };
+
+  const fetchStaff = async () => {
+    if (!profile?.org_id) return;
+    try {
+      const { data, error } = await supabase
+        .from('staff')
+        .select('id, first_name, last_name, department, job_title')
+        .eq('org_id', profile.org_id)
+        .in('department', ['Workshop', 'Maintenance']);
+
+      if (error) throw error;
+      setStaff(data || []);
+    } catch (error) {
+      console.error('Error fetching staff:', error);
+    }
+  };
+
   useEffect(() => {
     fetchTasks();
+    fetchVehicles();
+    fetchStaff();
   }, [profile?.org_id]);
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile?.org_id) return;
+
+    try {
+      setIsSubmitting(true);
+      const { error } = await supabase
+        .from('maintenance_records')
+        .insert([{
+          vehicle_id: newTask.vehicle_id,
+          staff_id: newTask.staff_id,
+          service_type: newTask.service_type,
+          status: newTask.status,
+          cost_estimate: newTask.cost_estimate,
+          scheduled_date: newTask.scheduled_date,
+          work_order_number: newTask.work_order_number,
+          org_id: profile.org_id
+        }]);
+
+      if (error) throw error;
+
+      setIsAddModalOpen(false);
+      setNewTask(emptyTask);
+      fetchTasks();
+    } catch (error) {
+      console.error('Error creating maintenance task:', error);
+      alert('Failed to add maintenance task.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile?.org_id || !editingTaskId) return;
+
+    try {
+      setIsSubmitting(true);
+      const { error } = await supabase
+        .from('maintenance_records')
+        .update({
+          vehicle_id: newTask.vehicle_id,
+          staff_id: newTask.staff_id,
+          service_type: newTask.service_type,
+          status: newTask.status,
+          cost_estimate: newTask.cost_estimate,
+          scheduled_date: newTask.scheduled_date,
+          work_order_number: newTask.work_order_number,
+        })
+        .eq('id', editingTaskId)
+        .eq('org_id', profile.org_id);
+
+      if (error) throw error;
+
+      setIsEditModalOpen(false);
+      setEditingTaskId(null);
+      setNewTask(emptyTask);
+      fetchTasks();
+    } catch (error) {
+      console.error('Error updating maintenance task:', error);
+      alert('Failed to update maintenance task.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    if (!profile?.org_id) return;
+    if (!window.confirm('Are you sure you want to delete this maintenance task?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('maintenance_records')
+        .delete()
+        .eq('id', id)
+        .eq('org_id', profile.org_id);
+
+      if (error) throw error;
+      fetchTasks();
+    } catch (error) {
+      console.error('Error deleting maintenance task:', error);
+      alert('Failed to delete maintenance task.');
+    }
+  };
+
+  const openEditModal = (task: MaintenanceTask) => {
+    // Find the original record to get the staff_id and vehicle_id
+    const originalRecord = tasks.find(t => t.id === task.id);
+    if (!originalRecord) return;
+
+    // We need to fetch the actual DB record to get foreign keys if they aren't in the mapped task
+    // OR we could ensure they are in the mapped task. Let's assume we can get them or fetch them.
+    // For now, let's just use what we have if we update the fetch logic to include them.
+
+    // Actually, let's just use the task.id and fetch the single record from DB for full accuracy
+    fetchSingleRecord(task.id);
+  };
+
+  const fetchSingleRecord = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_records')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+
+      setNewTask({
+        vehicle_id: data.vehicle_id || '',
+        staff_id: data.staff_id || '',
+        service_type: data.service_type || '',
+        status: data.status as MaintenanceStatus,
+        cost_estimate: data.cost_estimate || '',
+        scheduled_date: data.scheduled_date || '',
+        work_order_number: data.work_order_number || ''
+      });
+      setEditingTaskId(id);
+      setIsEditModalOpen(true);
+    } catch (error) {
+      console.error('Error fetching single record:', error);
+    }
+  };
 
   const stats = [
     {
@@ -88,7 +267,8 @@ const Maintenance: React.FC = () => {
 
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.vehicleName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.vehicleVin.toLowerCase().includes(searchQuery.toLowerCase());
+      task.vehicleVin.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      task.workOrderNumber.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
 
@@ -217,6 +397,7 @@ const Maintenance: React.FC = () => {
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="text-[11px] uppercase tracking-wider font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
                 <tr>
+                  <th className="px-6 py-4">Work Order #</th>
                   <th className="px-6 py-4">Vehicle</th>
                   <th className="px-6 py-4">Service Type</th>
                   <th className="px-6 py-4">Status</th>
@@ -229,6 +410,7 @@ const Maintenance: React.FC = () => {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredTasks.map((task) => (
                   <tr key={task.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="px-6 py-5 font-bold text-primary">#{task.workOrderNumber}</td>
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
                         <div className="size-12 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
@@ -261,10 +443,44 @@ const Maintenance: React.FC = () => {
                     <td className="px-6 py-5 text-slate-600 dark:text-slate-400 font-medium">
                       {task.estCompletion}
                     </td>
-                    <td className="px-6 py-5 text-center">
-                      <button className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all">
+                    <td className="px-6 py-5 text-center relative">
+                      <button
+                        onClick={() => setActiveMenuId(activeMenuId === task.id ? null : task.id)}
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                      >
                         <span className="material-symbols-outlined">more_vert</span>
                       </button>
+
+                      {activeMenuId === task.id && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => setActiveMenuId(null)}
+                          ></div>
+                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 py-2 animate-in fade-in zoom-in duration-150">
+                            <button
+                              onClick={() => {
+                                openEditModal(task);
+                                setActiveMenuId(null);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-lg">edit</span>
+                              Edit Order
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleDeleteTask(task.id);
+                                setActiveMenuId(null);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-lg">delete</span>
+                              Delete Task
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -299,7 +515,7 @@ const Maintenance: React.FC = () => {
 
             {/* Modal Form */}
             <div className="px-5 py-6 md:px-8 md:py-8 overflow-y-auto max-h-[calc(100vh-200px)]">
-              <form className="space-y-6">
+              <form id="add-maintenance-form" onSubmit={handleCreateTask} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Task Details */}
                   <div className="md:col-span-2 space-y-4">
@@ -307,18 +523,48 @@ const Maintenance: React.FC = () => {
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Vehicle</label>
-                        <select className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none">
-                          <option>Select a vehicle...</option>
+                        <select
+                          required
+                          value={newTask.vehicle_id}
+                          onChange={(e) => setNewTask({ ...newTask, vehicle_id: e.target.value })}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none cursor-pointer"
+                        >
+                          <option value="">Select a vehicle...</option>
+                          {vehicles.map(v => (
+                            <option key={v.id} value={v.id}>{v.name} ({v.plate})</option>
+                          ))}
                         </select>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Work Order #</label>
+                          <input
+                            required
+                            type="text"
+                            value={newTask.work_order_number}
+                            onChange={(e) => setNewTask({ ...newTask, work_order_number: e.target.value })}
+                            placeholder="e.g. WO-12345"
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                          />
+                        </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Service Type</label>
-                          <input type="text" placeholder="e.g. Oil Change" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                          <input
+                            required
+                            type="text"
+                            value={newTask.service_type}
+                            onChange={(e) => setNewTask({ ...newTask, service_type: e.target.value })}
+                            placeholder="e.g. Oil Change"
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                          />
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Status</label>
-                          <select className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none">
+                          <select
+                            value={newTask.status}
+                            onChange={(e) => setNewTask({ ...newTask, status: e.target.value as MaintenanceStatus })}
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none"
+                          >
                             <option value={MaintenanceStatus.SCHEDULED}>Scheduled</option>
                             <option value={MaintenanceStatus.IN_SHOP}>In Shop</option>
                             <option value={MaintenanceStatus.OVERDUE}>Overdue</option>
@@ -332,17 +578,39 @@ const Maintenance: React.FC = () => {
                   <div className="md:col-span-2 pt-4 space-y-4 border-t border-slate-50 dark:border-slate-800">
                     <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Logistics & Cost</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Assignee</label>
-                        <input type="text" placeholder="e.g. John Mechanic" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Assignee (Staff)</label>
+                        <select
+                          required
+                          value={newTask.staff_id}
+                          onChange={(e) => setNewTask({ ...newTask, staff_id: e.target.value })}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none cursor-pointer"
+                        >
+                          <option value="">Select staff member...</option>
+                          {staff.map(s => (
+                            <option key={s.id} value={s.id}>{s.first_name} {s.last_name} ({s.department} - {s.job_title})</option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Cost Estimate ($)</label>
-                        <input type="text" placeholder="150.00" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                        <input
+                          type="text"
+                          value={newTask.cost_estimate}
+                          onChange={(e) => setNewTask({ ...newTask, cost_estimate: e.target.value })}
+                          placeholder="150.00"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Scheduled Date</label>
-                        <input type="date" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                        <input
+                          required
+                          type="date"
+                          value={newTask.scheduled_date}
+                          onChange={(e) => setNewTask({ ...newTask, scheduled_date: e.target.value })}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
                       </div>
                     </div>
                   </div>
@@ -353,16 +621,185 @@ const Maintenance: React.FC = () => {
             {/* Modal Footer */}
             <div className="px-5 py-4 md:px-8 md:py-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 flex items-center justify-end gap-3">
               <button
+                type="button"
+                disabled={isSubmitting}
                 onClick={() => setIsAddModalOpen(false)}
                 className="px-6 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
               >
                 Cancel
               </button>
               <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-8 py-2.5 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                type="submit"
+                form="add-maintenance-form"
+                disabled={isSubmitting}
+                className="px-8 py-2.5 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
               >
-                Create Task
+                {isSubmitting && <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                {isSubmitting ? 'Creating...' : 'Create Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Edit Task Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+            onClick={() => {
+              setIsEditModalOpen(false);
+              setEditingTaskId(null);
+              setNewTask(emptyTask);
+            }}
+          ></div>
+
+          <div className="relative bg-white dark:bg-surface-dark w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="px-5 py-4 md:px-8 md:py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Edit Maintenance Task</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Update details for work order #{newTask.work_order_number}.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingTaskId(null);
+                  setNewTask(emptyTask);
+                }}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <div className="px-5 py-6 md:px-8 md:py-8 overflow-y-auto max-h-[calc(100vh-200px)]">
+              <form id="edit-maintenance-form" onSubmit={handleUpdateTask} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Task Details */}
+                  <div className="md:col-span-2 space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Task Details</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Vehicle</label>
+                        <select
+                          required
+                          value={newTask.vehicle_id}
+                          onChange={(e) => setNewTask({ ...newTask, vehicle_id: e.target.value })}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none cursor-pointer"
+                        >
+                          <option value="">Select a vehicle...</option>
+                          {vehicles.map(v => (
+                            <option key={v.id} value={v.id}>{v.name} ({v.plate})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Work Order #</label>
+                          <input
+                            required
+                            type="text"
+                            value={newTask.work_order_number}
+                            onChange={(e) => setNewTask({ ...newTask, work_order_number: e.target.value })}
+                            placeholder="e.g. WO-12345"
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Service Type</label>
+                          <input
+                            required
+                            type="text"
+                            value={newTask.service_type}
+                            onChange={(e) => setNewTask({ ...newTask, service_type: e.target.value })}
+                            placeholder="e.g. Oil Change"
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Status</label>
+                          <select
+                            value={newTask.status}
+                            onChange={(e) => setNewTask({ ...newTask, status: e.target.value as MaintenanceStatus })}
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none"
+                          >
+                            <option value={MaintenanceStatus.SCHEDULED}>Scheduled</option>
+                            <option value={MaintenanceStatus.IN_SHOP}>In Shop</option>
+                            <option value={MaintenanceStatus.OVERDUE}>Overdue</option>
+                            <option value={MaintenanceStatus.DONE}>Completed</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Logistics */}
+                  <div className="md:col-span-2 pt-4 space-y-4 border-t border-slate-50 dark:border-slate-800">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Logistics & Cost</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Assignee (Staff)</label>
+                        <select
+                          required
+                          value={newTask.staff_id}
+                          onChange={(e) => setNewTask({ ...newTask, staff_id: e.target.value })}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none cursor-pointer"
+                        >
+                          <option value="">Select staff member...</option>
+                          {staff.map(s => (
+                            <option key={s.id} value={s.id}>{s.first_name} {s.last_name} ({s.department} - {s.job_title})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Cost Estimate ($)</label>
+                        <input
+                          type="text"
+                          value={newTask.cost_estimate}
+                          onChange={(e) => setNewTask({ ...newTask, cost_estimate: e.target.value })}
+                          placeholder="150.00"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Scheduled Date</label>
+                        <input
+                          required
+                          type="date"
+                          value={newTask.scheduled_date}
+                          onChange={(e) => setNewTask({ ...newTask, scheduled_date: e.target.value })}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-4 md:px-8 md:py-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingTaskId(null);
+                  setNewTask(emptyTask);
+                }}
+                className="px-6 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="edit-maintenance-form"
+                disabled={isSubmitting}
+                className="px-8 py-2.5 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
+              >
+                {isSubmitting && <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                {isSubmitting ? 'Updating...' : 'Save Changes'}
               </button>
             </div>
           </div>

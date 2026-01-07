@@ -132,11 +132,13 @@ export interface Customer {
 
 export interface MaintenanceTask {
   id: string;
+  workOrderNumber: string;
   vehicleName: string;
   vehicleVin: string;
   vehicleImage: string;
   serviceType: string;
   status: MaintenanceStatus;
+  staffId?: string;
   assigneeName: string;
   assigneeAvatar: string;
   costEstimate: string;
