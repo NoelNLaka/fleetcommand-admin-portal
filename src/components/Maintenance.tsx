@@ -16,6 +16,8 @@ const Maintenance: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<MaintenanceTask | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const emptyTask = {
     vehicle_id: '',
@@ -410,7 +412,17 @@ const Maintenance: React.FC = () => {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredTasks.map((task) => (
                   <tr key={task.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-5 font-bold text-primary">#{task.workOrderNumber}</td>
+                    <td className="px-6 py-5">
+                      <button
+                        onClick={() => {
+                          setSelectedTask(task);
+                          setIsDetailsOpen(true);
+                        }}
+                        className="font-bold text-primary hover:text-primary/80 transition-colors hover:underline"
+                      >
+                        #{task.workOrderNumber}
+                      </button>
+                    </td>
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
                         <div className="size-12 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
@@ -489,6 +501,155 @@ const Maintenance: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Work Order Details Drawer */}
+      {isDetailsOpen && selectedTask && (
+        <div className="fixed inset-0 z-[60] flex justify-end">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsDetailsOpen(false)}
+          ></div>
+
+          <div className="relative w-full max-w-lg bg-white dark:bg-surface-dark h-full shadow-2xl animate-in slide-in-from-right duration-300">
+            {/* Drawer Header */}
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/30 dark:bg-slate-900/20">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Work Order Details</h2>
+                  <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-black rounded-md uppercase tracking-wider">
+                    #{selectedTask.workOrderNumber}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 uppercase tracking-widest font-bold">Maintenance Record</p>
+              </div>
+              <button
+                onClick={() => setIsDetailsOpen(false)}
+                className="size-10 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Drawer Content */}
+            <div className="p-6 space-y-8 overflow-y-auto h-[calc(100vh-88px)]">
+              {/* Vehicle Section */}
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">directions_car</span>
+                  Vehicle Information
+                </h3>
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                  <div className="size-20 rounded-xl bg-slate-200 dark:bg-slate-800 overflow-hidden shrink-0 shadow-inner">
+                    <img src={selectedTask.vehicleImage} alt="" className="size-full object-cover" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">{selectedTask.vehicleName}</h4>
+                    <p className="text-xs text-slate-500 font-mono mt-1 tracking-wider uppercase">{selectedTask.vehicleVin}</p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[14px] text-slate-400">location_on</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Main Workshop</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Service Status */}
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">handyman</span>
+                  Service & Status
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-white dark:bg-surface-dark border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Service Type</p>
+                    <p className="font-bold text-slate-900 dark:text-white">{selectedTask.serviceType}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">{selectedTask.currentStep}</p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white dark:bg-surface-dark border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Current Status</p>
+                    {getStatusBadge(selectedTask.status)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Logistics & Cost */}
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">payments</span>
+                  Logistics & Cost
+                </h3>
+                <div className="space-y-3">
+                  <div className="p-4 rounded-2xl bg-white dark:bg-surface-dark border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden ring-2 ring-white dark:ring-slate-700 shadow-sm">
+                        <img src={selectedTask.assigneeAvatar} alt="" className="size-full object-cover" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Assigned To</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{selectedTask.assigneeName}</p>
+                      </div>
+                    </div>
+                    <button className="p-2 text-primary hover:bg-primary/5 rounded-lg transition-colors">
+                      <span className="material-symbols-outlined">chat</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-4 rounded-2xl bg-slate-900 dark:bg-primary text-white shadow-xl shadow-primary/20">
+                      <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-1">Cost Estimate</p>
+                      <p className="text-xl font-black">{selectedTask.costEstimate}</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-white dark:bg-surface-dark border border-slate-100 dark:border-slate-800 shadow-sm">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Due Date</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{selectedTask.estCompletion}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes or Timeline */}
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">history</span>
+                  Activity Log
+                </h3>
+                <div className="relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 dark:before:bg-slate-800">
+                  <div className="relative">
+                    <div className="absolute -left-[19px] top-1 size-2.5 rounded-full bg-primary ring-4 ring-primary/10"></div>
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">Maintenance Scheduled</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{selectedTask.estCompletion}</p>
+                  </div>
+                  <div className="relative">
+                    <div className="absolute -left-[19px] top-1 size-2.5 rounded-full bg-slate-200 dark:bg-slate-700"></div>
+                    <p className="text-xs font-bold text-slate-400">In Shop Inspection</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Pending</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="absolute bottom-0 inset-x-0 p-6 bg-white dark:bg-surface-dark border-t border-slate-100 dark:border-slate-800 flex gap-3">
+              <button
+                onClick={() => {
+                  openEditModal(selectedTask);
+                  setIsDetailsOpen(false);
+                }}
+                className="flex-1 px-6 py-3 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-bold rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-lg">edit</span>
+                Edit Order
+              </button>
+              <button
+                onClick={() => setIsDetailsOpen(false)}
+                className="px-6 py-3 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Task Modal */}
       {isAddModalOpen && (
