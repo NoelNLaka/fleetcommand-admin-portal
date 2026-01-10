@@ -53,8 +53,9 @@ id,
   payment_status,
   customer_id,
   vehicle_id,
-  customer: customers(name, email),
-    vehicle: vehicles(name, plate)
+  vehicle: vehicles(name, plate),
+  updated_by_profile:profiles!bookings_updated_by_fkey(id, full_name),
+  updated_at
         `)
         .eq('org_id', profile.org_id);
 
@@ -72,7 +73,12 @@ id,
         endDate: b.end_date || '',
         durationDays: b.duration_days || 0,
         status: b.status as BookingStatus,
-        paymentStatus: b.payment_status as PaymentStatus
+        paymentStatus: b.payment_status as PaymentStatus,
+        updatedAt: b.updated_at,
+        updatedBy: b.updated_by_profile ? {
+          id: b.updated_by_profile.id,
+          fullName: b.updated_by_profile.full_name
+        } : undefined
       }));
 
       setBookings(mappedBookings);
@@ -176,7 +182,8 @@ id,
         .insert([{
           ...newBooking,
           customer_id: customerId,
-          org_id: profile.org_id
+          org_id: profile.org_id,
+          updated_by: profile?.id
         }]);
 
       if (bookingError) throw bookingError;
@@ -401,7 +408,17 @@ id,
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {bookings.map((booking) => (
                   <tr key={booking.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-5 font-bold text-primary">{booking.bookingId}</td>
+                    <td className="px-6 py-5">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-primary">{booking.bookingId}</span>
+                        {booking.updatedBy && (
+                          <span className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-0.5" title={`Last edited by ${booking.updatedBy.fullName} on ${new Date(booking.updatedAt!).toLocaleString()}`}>
+                            <span className="material-symbols-outlined text-[12px]">edit_note</span>
+                            {booking.updatedBy.fullName.split(' ')[0]} • {new Date(booking.updatedAt!).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
                         <div className="size-8 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden ring-2 ring-white dark:ring-slate-700">

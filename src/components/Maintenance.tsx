@@ -41,7 +41,8 @@ const Maintenance: React.FC = () => {
         .select(`
           *,
           vehicle: vehicles(name, vin, image_url),
-          assigned_staff: staff(id, first_name, last_name)
+          assigned_staff: staff(id, first_name, last_name),
+          updated_by_profile:profiles!maintenance_records_updated_by_fkey(id, full_name)
         `)
         .eq('org_id', profile.org_id);
 
@@ -71,7 +72,12 @@ const Maintenance: React.FC = () => {
           assigneeAvatar: `https://i.pravatar.cc/150?u=${staffName}`,
           costEstimate: t.cost_estimate ? (t.cost_estimate.startsWith('$') ? t.cost_estimate : `$${parseFloat(t.cost_estimate).toFixed(2)}`) : '$0.00',
           currentStep: t.current_step || (normalizedStatus === MaintenanceStatus.DONE ? 'Done' : normalizedStatus === MaintenanceStatus.IN_SHOP ? 'In Shop' : 'Scheduled'),
-          estCompletion: t.scheduled_date || 'N/A'
+          estCompletion: t.scheduled_date || 'N/A',
+          updatedAt: t.updated_at,
+          updatedBy: t.updated_by_profile ? {
+            id: t.updated_by_profile.id,
+            fullName: t.updated_by_profile.full_name
+          } : undefined
         };
       });
 
@@ -135,7 +141,8 @@ const Maintenance: React.FC = () => {
           cost_estimate: newTask.cost_estimate,
           scheduled_date: newTask.scheduled_date,
           work_order_number: newTask.work_order_number,
-          org_id: profile.org_id
+          org_id: profile.org_id,
+          updated_by: profile?.id
         }]);
 
       if (error) throw error;
@@ -167,6 +174,7 @@ const Maintenance: React.FC = () => {
           cost_estimate: newTask.cost_estimate,
           scheduled_date: newTask.scheduled_date,
           work_order_number: newTask.work_order_number,
+          updated_by: profile?.id
         })
         .eq('id', editingTaskId)
         .eq('org_id', profile.org_id);
@@ -422,6 +430,12 @@ const Maintenance: React.FC = () => {
                       >
                         #{task.workOrderNumber}
                       </button>
+                      {task.updatedBy && (
+                        <span className="text-[9px] text-slate-400 mt-1 flex items-center gap-0.5" title={`Last edited by ${task.updatedBy.fullName} on ${new Date(task.updatedAt!).toLocaleString()}`}>
+                          <span className="material-symbols-outlined text-[12px]">edit_note</span>
+                          {task.updatedBy.fullName.split(' ')[0]} • {new Date(task.updatedAt!).toLocaleDateString()}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
@@ -551,6 +565,12 @@ const Maintenance: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                {selectedTask.updatedBy && (
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-2 border-t border-slate-50 dark:border-slate-800/50 pt-2">
+                    <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                    <span>Last edited by <span className="font-semibold text-slate-500">{selectedTask.updatedBy.fullName}</span> on {new Date(selectedTask.updatedAt!).toLocaleString()}</span>
+                  </div>
+                )}
               </div>
 
               {/* Service Status */}

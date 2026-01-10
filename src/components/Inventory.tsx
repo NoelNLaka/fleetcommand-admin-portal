@@ -60,7 +60,10 @@ const Inventory: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('vehicles')
-        .select('*')
+        .select(`
+          *,
+          updated_by_profile:profiles!vehicles_updated_by_fkey(id, full_name)
+        `)
         .eq('org_id', profile.org_id)
         .order('created_at', { ascending: false });
 
@@ -77,7 +80,12 @@ const Inventory: React.FC = () => {
         status: v.status as VehicleStatus,
         location: v.location || '',
         mileage: v.mileage || '0',
-        dailyRate: v.daily_rate || '$0.00'
+        dailyRate: v.daily_rate || '$0.00',
+        updatedAt: v.updated_at,
+        updatedBy: v.updated_by_profile ? {
+          id: v.updated_by_profile.id,
+          fullName: v.updated_by_profile.full_name
+        } : undefined
       }));
 
       setVehicles(mappedVehicles);
@@ -433,6 +441,13 @@ const Inventory: React.FC = () => {
                         {selectedVehicle.dailyRate}/day
                       </span>
                     </div>
+
+                    {selectedVehicle.updatedBy && (
+                      <div className="flex items-center justify-center md:justify-start gap-2 text-[10px] text-slate-400 mt-4 border-t border-slate-50 dark:border-slate-800/50 pt-3">
+                        <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                        <span>Last edited by <span className="font-semibold text-slate-500 truncate max-w-[120px] inline-block align-bottom">{selectedVehicle.updatedBy.fullName}</span> on {new Date(selectedVehicle.updatedAt!).toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -729,21 +744,19 @@ const Inventory: React.FC = () => {
                                 <p className="text-[10px] text-slate-400">to {formatDate(booking.endDate)}</p>
                               </td>
                               <td className="px-6 py-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                  booking.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' :
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${booking.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' :
                                   booking.status === 'Completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30' :
-                                  booking.status === 'Overdue' ? 'bg-red-100 text-red-700 dark:bg-red-900/30' :
-                                  'bg-slate-100 text-slate-600 dark:bg-slate-800'
-                                }`}>
+                                    booking.status === 'Overdue' ? 'bg-red-100 text-red-700 dark:bg-red-900/30' :
+                                      'bg-slate-100 text-slate-600 dark:bg-slate-800'
+                                  }`}>
                                   {booking.status}
                                 </span>
                               </td>
                               <td className="px-6 py-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                  booking.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' :
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${booking.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' :
                                   booking.paymentStatus === 'Partial' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30' :
-                                  'bg-red-100 text-red-700 dark:bg-red-900/30'
-                                }`}>
+                                    'bg-red-100 text-red-700 dark:bg-red-900/30'
+                                  }`}>
                                   {booking.paymentStatus}
                                 </span>
                               </td>

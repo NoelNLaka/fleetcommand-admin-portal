@@ -65,6 +65,11 @@ export interface Vehicle {
   location: string;
   mileage: string;
   dailyRate: string;
+  updatedAt?: string;
+  updatedBy?: {
+    id: string;
+    fullName: string;
+  };
 }
 
 export interface VehicleActivity {
@@ -93,6 +98,11 @@ export interface Booking {
   startDate: string;
   endDate: string;
   durationDays: number;
+  updatedAt?: string;
+  updatedBy?: {
+    id: string;
+    fullName: string;
+  };
 }
 
 export interface Customer {
@@ -110,6 +120,17 @@ export interface Customer {
   lastDLDigits: string;
   isNew?: boolean;
   internalNotes?: string;
+  secondaryPhone?: string;
+  nextOfKinName?: string;
+  nextOfKinPhone?: string;
+  company?: string;
+  nidNumber?: string;
+  licenseImageUrl?: string;
+  updatedAt?: string;
+  updatedBy?: {
+    id: string;
+    fullName: string;
+  };
   license: {
     state: string;
     number: string;
@@ -146,6 +167,11 @@ export interface MaintenanceTask {
   estCompletion?: string;
   arrivalMileage?: number;
   notes?: string;
+  updatedAt?: string;
+  updatedBy?: {
+    id: string;
+    fullName: string;
+  };
 }
 
 export interface InsuranceRecord {
