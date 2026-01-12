@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { VehicleStatus, Vehicle, InsuranceRecordType, InsuranceStatus, MaintenanceStatus } from '../types';
+import { VehicleStatus, Vehicle, InsuranceRecordType, InsuranceStatus, MaintenanceStatus, BranchLocation } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -41,11 +41,127 @@ const Inventory: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [activeTab, setActiveTab] = useState('Overview');
   const [showListOnMobile, setShowListOnMobile] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+
+  // Add Vehicle State
+  const [locations, setLocations] = useState<BranchLocation[]>([]);
+  const [newVehicle, setNewVehicle] = useState({
+    name: '',
+    year: '',
+    trim: '',
+    plate: '',
+    vin: '',
+    location: '',
+    dailyRate: '',
+    mileage: ''
+  });
+
+  const fetchLocations = async () => {
+    if (!profile?.org_id) return;
+    try {
+      const { data, error } = await supabase
+        .from('branch_locations')
+        .select('*')
+        .eq('org_id', profile.org_id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const mappedLocations: BranchLocation[] = (data || []).map(l => ({
+        id: l.id,
+        name: l.name,
+        address: l.address,
+        isDefault: l.is_default
+      }));
+      setLocations(mappedLocations);
+
+      // Set default location if available
+      const defaultLoc = mappedLocations.find(l => l.isDefault);
+      if (defaultLoc) {
+        setNewVehicle(prev => ({ ...prev, location: defaultLoc.address }));
+      }
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (showListOnMobile || !selectedVehicleId) {
+      // Refresh locations when back to list view or similar triggers, 
+      // or just call it on mount if we want. 
+      // For now, let's call it when opening the modal or on mount.
+      fetchLocations();
+    }
+  }, [profile?.org_id]); // Fetch on mount/profile load
+
+  const handleRegisterVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile?.org_id) return;
+
+    try {
+      if (editingVehicle) {
+        // Update existing vehicle
+        const { error } = await supabase
+          .from('vehicles')
+          .update({
+            name: newVehicle.name,
+            year: parseInt(newVehicle.year) || new Date().getFullYear(),
+            trim: newVehicle.trim,
+            plate: newVehicle.plate,
+            vin: newVehicle.vin,
+            location: newVehicle.location,
+            mileage: parseInt(newVehicle.mileage) || 0,
+            daily_rate: parseFloat(newVehicle.dailyRate.replace(/[^0-9.]/g, '')) || 0,
+            updated_by: profile.id,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', editingVehicle.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new vehicle
+        const { error } = await supabase.from('vehicles').insert([{
+          org_id: profile.org_id,
+          name: newVehicle.name,
+          year: parseInt(newVehicle.year) || new Date().getFullYear(),
+          trim: newVehicle.trim,
+          plate: newVehicle.plate,
+          vin: newVehicle.vin,
+          status: VehicleStatus.AVAILABLE,
+          location: newVehicle.location,
+          mileage: parseInt(newVehicle.mileage) || 0,
+          daily_rate: parseFloat(newVehicle.dailyRate.replace(/[^0-9.]/g, '')) || 0,
+          updated_by: profile.id
+        }]);
+
+        if (error) throw error;
+      }
+
+      setIsAddModalOpen(false);
+      setEditingVehicle(null);
+      setNewVehicle({
+        name: '',
+        year: '',
+        trim: '',
+        plate: '',
+        vin: '',
+        location: '',
+        dailyRate: '',
+        mileage: ''
+      });
+      fetchVehicles();
+      // Refetch locations to reset default if needed
+      fetchLocations();
+    } catch (error) {
+      console.error('Error saving vehicle:', error);
+      alert('Failed to save vehicle. Please check input.');
+    }
+  };
 
   // Detail data states
   const [insuranceRecords, setInsuranceRecords] = useState<InsuranceRecord[]>([]);
@@ -353,17 +469,13 @@ const Inventory: React.FC = () => {
                 <img src={vehicle.image} alt="" className="size-full object-cover" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-0.5">
-                  <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">{vehicle.name}</h4>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${getStatusColor(vehicle.status)}`}>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-900 dark:text-white truncate">{vehicle.plate}</h3>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getStatusColor(vehicle.status)}`}>
                     {vehicle.status}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 truncate mb-1">{vehicle.year} • {vehicle.trim}</p>
-                <div className="flex items-center justify-between text-[10px] font-medium text-slate-400">
-                  <span>{vehicle.plate}</span>
-                  <span>{vehicle.mileage} mi</span>
-                </div>
+                <p className="text-xs text-slate-500 truncate">{vehicle.name}</p>
               </div>
             </button>
           ))}
@@ -406,8 +518,11 @@ const Inventory: React.FC = () => {
                   <div className="flex-1 space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="text-center md:text-left">
-                        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">{selectedVehicle.name}</h1>
+                        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white uppercase tracking-wide">{selectedVehicle.plate}</h1>
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-1 text-slate-500 text-sm">
+                          <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
+                            {selectedVehicle.name}
+                          </span>
                           <span className="flex items-center gap-1">
                             <span className="material-symbols-outlined text-[18px]">calendar_month</span>
                             {selectedVehicle.year}
@@ -423,7 +538,25 @@ const Inventory: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center justify-center gap-2">
-                        <button className="px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Edit</button>
+                        <button
+                          onClick={() => {
+                            setEditingVehicle(selectedVehicle);
+                            setNewVehicle({
+                              name: selectedVehicle.name,
+                              year: selectedVehicle.year,
+                              trim: selectedVehicle.trim,
+                              plate: selectedVehicle.plate,
+                              vin: selectedVehicle.vin,
+                              location: selectedVehicle.location,
+                              dailyRate: selectedVehicle.dailyRate.toString().replace(/[^0-9.]/g, ''),
+                              mileage: selectedVehicle.mileage.toString()
+                            });
+                            setIsAddModalOpen(true);
+                          }}
+                          className="px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+                        >
+                          Edit
+                        </button>
                         <button className="px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg hover:bg-primary/90">Create Booking</button>
                       </div>
                     </div>
@@ -784,17 +917,27 @@ const Inventory: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
-            onClick={() => setIsAddModalOpen(false)}
+            onClick={() => {
+              setIsAddModalOpen(false);
+              setEditingVehicle(null);
+            }}
           ></div>
 
           <div className="relative bg-white dark:bg-surface-dark w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
             <div className="px-5 py-4 md:px-8 md:py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Add New Vehicle</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Register a new vehicle to your fleet.</p>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  {editingVehicle ? 'Edit Vehicle' : 'Add New Vehicle'}
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {editingVehicle ? `Update details for ${editingVehicle.plate}` : 'Register a new vehicle to your fleet.'}
+                </p>
               </div>
               <button
-                onClick={() => setIsAddModalOpen(false)}
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  setEditingVehicle(null);
+                }}
                 className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
               >
                 <span className="material-symbols-outlined">close</span>
@@ -802,52 +945,136 @@ const Inventory: React.FC = () => {
             </div>
 
             <div className="px-5 py-6 md:px-8 md:py-8 overflow-y-auto max-h-[calc(100vh-200px)]">
-              <form className="space-y-6">
+              <form onSubmit={handleRegisterVehicle} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2 space-y-4">
                     <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Basic Information</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Vehicle Name</label>
-                        <input type="text" placeholder="e.g. Toyota Camry" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                        <input
+                          type="text"
+                          required
+                          value={newVehicle.name}
+                          onChange={e => setNewVehicle({ ...newVehicle, name: e.target.value })}
+                          placeholder="e.g. Toyota Camry"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Year</label>
-                        <input type="text" placeholder="2024" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                        <input
+                          type="text"
+                          required
+                          value={newVehicle.year}
+                          onChange={e => setNewVehicle({ ...newVehicle, year: e.target.value })}
+                          placeholder="2024"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Trim / Model</label>
+                        <input
+                          type="text"
+                          value={newVehicle.trim}
+                          onChange={e => setNewVehicle({ ...newVehicle, trim: e.target.value })}
+                          placeholder="e.g. SE Hybrid"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Daily Rate ($)</label>
+                        <input
+                          type="number"
+                          required
+                          value={newVehicle.dailyRate}
+                          onChange={e => setNewVehicle({ ...newVehicle, dailyRate: e.target.value })}
+                          placeholder="50.00"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
                       </div>
                     </div>
                   </div>
 
                   <div className="md:col-span-2 pt-4 space-y-4 border-t border-slate-50 dark:border-slate-800">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Identification</h3>
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Identification & Location</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">License Plate</label>
-                        <input type="text" placeholder="ABC-1234" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                        <input
+                          type="text"
+                          required
+                          value={newVehicle.plate}
+                          onChange={e => setNewVehicle({ ...newVehicle, plate: e.target.value })}
+                          placeholder="ABC-1234"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">VIN Number</label>
-                        <input type="text" placeholder="17-character VIN" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all" />
+                        <input
+                          type="text"
+                          required
+                          value={newVehicle.vin}
+                          onChange={e => setNewVehicle({ ...newVehicle, vin: e.target.value })}
+                          placeholder="17-character VIN"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Current Mileage</label>
+                        <input
+                          type="number"
+                          value={newVehicle.mileage}
+                          onChange={e => setNewVehicle({ ...newVehicle, mileage: e.target.value })}
+                          placeholder="0"
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Location</label>
+                        <div className="relative">
+                          <select
+                            value={newVehicle.location}
+                            onChange={e => setNewVehicle({ ...newVehicle, location: e.target.value })}
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none"
+                          >
+                            <option value="">Select a location...</option>
+                            {locations.map(loc => (
+                              <option key={loc.id} value={loc.address}>{loc.name} ({loc.address})</option>
+                            ))}
+                          </select>
+                          <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-lg">expand_more</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </form>
-            </div>
 
-            <div className="px-5 py-4 md:px-8 md:py-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-6 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-8 py-2.5 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
-              >
-                Register Vehicle
-              </button>
+                <div className="px-5 py-4 md:px-8 md:py-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 flex items-center justify-end gap-3 -mx-8 -mb-8 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddModalOpen(false);
+                      setEditingVehicle(null);
+                    }}
+                    className="px-6 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-8 py-2.5 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                  >
+                    {editingVehicle ? 'Save Changes' : 'Register Vehicle'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

@@ -1,8 +1,9 @@
+/// <reference types="vite/client" />
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { UserRole } from '../types';
+import { UserRole, BranchLocation } from '../types';
 import { QRCodeCanvas } from 'qrcode.react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -103,6 +104,149 @@ const Settings: React.FC = () => {
         address: '123 Logistics Blvd, Suite 400, San Francisco, CA 94107, USA'
     });
 
+    // Locations State
+    const [locations, setLocations] = useState<BranchLocation[]>([]);
+    const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+    const [editingLocation, setEditingLocation] = useState<BranchLocation | null>(null);
+    const [newLocation, setNewLocation] = useState({ name: '', address: '', isDefault: false });
+
+    const fetchLocations = async () => {
+        if (!profile?.org_id) return;
+        try {
+            const { data, error } = await supabase
+                .from('branch_locations')
+                .select('*')
+                .eq('org_id', profile.org_id)
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+
+            const mappedLocations: BranchLocation[] = (data || []).map(l => ({
+                id: l.id,
+                name: l.name,
+                address: l.address,
+                isDefault: l.is_default
+            }));
+            setLocations(mappedLocations);
+        } catch (error) {
+            console.error('Error fetching locations:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (activeOrgTab === 'Locations') {
+            fetchLocations();
+        }
+    }, [activeOrgTab]);
+
+    const handleAddLocation = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!profile?.org_id) return;
+
+        try {
+            // If setting as default, unset others first if needed
+            if (newLocation.isDefault) {
+                await supabase
+                    .from('branch_locations')
+                    .update({ is_default: false })
+                    .eq('org_id', profile.org_id);
+            }
+
+            if (editingLocation) {
+                // Update existing location
+                const { error } = await supabase
+                    .from('branch_locations')
+                    .update({
+                        name: newLocation.name,
+                        address: newLocation.address,
+                        is_default: newLocation.isDefault,
+                        updated_by: profile.id
+                    })
+                    .eq('id', editingLocation.id);
+
+                if (error) throw error;
+
+                // Sync fleet if this is (now) the default location
+                if (newLocation.isDefault) {
+                    const { error: vehicleError } = await supabase
+                        .from('vehicles')
+                        .update({ location: newLocation.address })
+                        .eq('org_id', profile.org_id);
+                    if (vehicleError) console.error('Error syncing vehicle locations:', vehicleError);
+                }
+            } else {
+                // Insert new location
+                const { error } = await supabase.from('branch_locations').insert([{
+                    org_id: profile.org_id,
+                    name: newLocation.name,
+                    address: newLocation.address,
+                    is_default: newLocation.isDefault,
+                    updated_by: profile.id
+                }]);
+
+                if (error) throw error;
+
+                // Sync fleet if this is the default location
+                if (newLocation.isDefault) {
+                    const { error: vehicleError } = await supabase
+                        .from('vehicles')
+                        .update({ location: newLocation.address })
+                        .eq('org_id', profile.org_id);
+                    if (vehicleError) console.error('Error syncing vehicle locations:', vehicleError);
+                }
+            }
+
+            setIsLocationModalOpen(false);
+            setEditingLocation(null);
+            setNewLocation({ name: '', address: '', isDefault: false });
+            fetchLocations();
+        } catch (error) {
+            console.error('Error saving location:', error);
+        }
+    };
+
+    const handleDeleteLocation = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this location?')) return;
+        try {
+            const { error } = await supabase.from('branch_locations').delete().eq('id', id);
+            if (error) throw error;
+            fetchLocations();
+        } catch (error) {
+            console.error('Error deleting location:', error);
+        }
+    };
+
+    const handleSetDefaultLocation = async (id: string) => {
+        if (!profile?.org_id) return;
+        try {
+            // Find the location to get its address
+            const targetLoc = locations.find(l => l.id === id);
+            if (!targetLoc) return;
+
+            await supabase
+                .from('branch_locations')
+                .update({ is_default: false })
+                .eq('org_id', profile.org_id); // Unset all
+
+            await supabase
+                .from('branch_locations')
+                .update({ is_default: true })
+                .eq('id', id); // Set new default
+
+            // Sync fleet with new default location address
+            const { error: vehicleError } = await supabase
+                .from('vehicles')
+                .update({ location: targetLoc.address })
+                .eq('org_id', profile.org_id);
+
+            if (vehicleError) throw vehicleError;
+
+            fetchLocations();
+        } catch (error) {
+            console.error('Error setting default location:', error);
+        }
+    };
+
     useEffect(() => {
         const fetchOrgInfo = async () => {
             if (!profile?.org_id) return;
@@ -188,6 +332,7 @@ const Settings: React.FC = () => {
                     { id: 'Organization Profile', icon: 'badge', roles: [UserRole.SUPERADMIN] },
                     { id: 'Subscription Plan', icon: 'workspace_premium', roles: [UserRole.SUPERADMIN] },
                     { id: 'Billing & Invoices', icon: 'receipt_long', roles: [UserRole.SUPERADMIN] },
+                    { id: 'Locations', icon: 'store', roles: [UserRole.SUPERADMIN, UserRole.ADMIN] },
                     { id: 'Team Members', icon: 'groups', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC] },
                     { id: 'Mobile Pairing', icon: 'qr_code_2', roles: [UserRole.SUPERADMIN] }
                 ].filter(tab => profile?.role && tab.roles.includes(profile.role as UserRole)).map(tab => (
@@ -456,6 +601,134 @@ const Settings: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+
+                    {activeOrgTab === 'Locations' && (
+                        <div className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-10 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-6 mb-8">
+                                <h2 className="text-2xl font-black text-slate-900 dark:text-white">Branch Locations</h2>
+                                <button
+                                    onClick={() => setIsLocationModalOpen(true)}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">add</span>
+                                    Add Branch
+                                </button>
+                            </div>
+
+                            {locations.length === 0 ? (
+                                <div className="text-center py-12 text-slate-400">
+                                    <span className="material-symbols-outlined text-4xl mb-2">store</span>
+                                    <p className="font-bold text-slate-600 dark:text-slate-300">No locations added</p>
+                                    <p className="text-sm">Add your main HQ or branch offices.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {locations.map(location => (
+                                        <div key={location.id} className="p-4 border border-slate-100 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/20 hover:border-primary/30 transition-all group relative">
+                                            {location.isDefault && (
+                                                <span className="absolute top-4 right-4 px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 text-[9px] font-black uppercase tracking-wider rounded-lg">Default</span>
+                                            )}
+                                            <div className="flex items-start gap-4">
+                                                <div className="size-10 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-primary shadow-sm">
+                                                    <span className="material-symbols-outlined">store</span>
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-slate-900 dark:text-white">{location.name}</h3>
+                                                    <p className="text-xs text-slate-500 mt-1 leading-relaxed max-w-[200px]">{location.address}</p>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                {!location.isDefault && (
+                                                    <button onClick={() => handleSetDefaultLocation(location.id)} className="text-[10px] font-bold text-slate-400 hover:text-primary">Set Default</button>
+                                                )}
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingLocation(location);
+                                                        setNewLocation({ name: location.name, address: location.address, isDefault: location.isDefault });
+                                                        setIsLocationModalOpen(true);
+                                                    }}
+                                                    className="text-[10px] font-bold text-slate-400 hover:text-primary ml-2"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button onClick={() => handleDeleteLocation(location.id)} className="text-[10px] font-bold text-red-400 hover:text-red-500 ml-2">Delete</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Location Modal */}
+                            {isLocationModalOpen && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => {
+                                        setIsLocationModalOpen(false);
+                                        setEditingLocation(null);
+                                        setNewLocation({ name: '', address: '', isDefault: false });
+                                    }}></div>
+                                    <div className="relative bg-white dark:bg-surface-dark w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-6 animate-in zoom-in duration-200">
+                                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
+                                            {editingLocation ? 'Edit Branch Location' : 'Add Branch Location'}
+                                        </h3>
+                                        <form onSubmit={handleAddLocation} className="space-y-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Branch Name</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={newLocation.name}
+                                                    onChange={e => setNewLocation({ ...newLocation, name: e.target.value })}
+                                                    placeholder="e.g. Headquarters"
+                                                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Address</label>
+                                                <textarea
+                                                    required
+                                                    value={newLocation.address}
+                                                    onChange={e => setNewLocation({ ...newLocation, address: e.target.value })}
+                                                    placeholder="Full address..."
+                                                    rows={3}
+                                                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id="isDefault"
+                                                    checked={newLocation.isDefault}
+                                                    onChange={e => setNewLocation({ ...newLocation, isDefault: e.target.checked })}
+                                                    className="rounded border-slate-300 text-primary focus:ring-primary/20"
+                                                />
+                                                <label htmlFor="isDefault" className="text-sm font-medium text-slate-700 dark:text-slate-300">Set as default location</label>
+                                            </div>
+                                            <div className="flex gap-3 pt-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setIsLocationModalOpen(false);
+                                                        setEditingLocation(null);
+                                                        setNewLocation({ name: '', address: '', isDefault: false });
+                                                    }}
+                                                    className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    type="submit"
+                                                    className="flex-1 px-4 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary/90"
+                                                >
+                                                    {editingLocation ? 'Save Changes' : 'Add Location'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
