@@ -33,3 +33,15 @@ deploy-supabase.bat
 # Local tool data
 .claude/
 supabase/.temp/
+
+# Android/Gradle
+.gradle/
+build/
+app/build/
+*.iml
+local.properties
+captured_images/
+inventory_offline_app/.gradle/
+inventory_offline_app/build/
+*.apk
+nul

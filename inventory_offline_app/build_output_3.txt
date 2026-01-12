@@ -1,0 +1,65 @@
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:kspDebugKotlin
+
+> Task :app:compileDebugKotlin
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/sync/SyncWorker.kt:52:17 Condition is always 'false'.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/components/CommonComponents.kt:230:41 '@property:Deprecated(...) val Icons.Filled.Assignment: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Assignment.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/screens/dashboard/DashboardScreen.kt:115:42 '@property:Deprecated(...) val Icons.Filled.Assignment: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Assignment.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/screens/dashboard/DashboardScreen.kt:158:38 '@property:Deprecated(...) val Icons.Filled.Assignment: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Assignment.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/screens/inventory/AddPartScreen.kt:73:26 '@Deprecated(...) fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/screens/maintenance/StartMaintenanceScreen.kt:57:26 '@Deprecated(...) fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/screens/maintenance/StartMaintenanceScreen.kt:91:26 '@Deprecated(...) fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/screens/requests/RequestsScreen.kt:95:50 '@property:Deprecated(...) val Icons.Filled.Assignment: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Assignment.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/screens/setup/QrScannerScreen.kt:45:26 '@property:Deprecated(...) val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/screens/setup/QrScannerScreen.kt:194:26 '@property:Deprecated(...) val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/screens/setup/QrScannerScreen.kt:211:22 '@Deprecated(...) @NonNull() fun setTargetResolution(@NonNull() p0: Size): ImageAnalysis.Builder' is deprecated. Deprecated in Java.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/screens/shift/ShiftReportScreen.kt:97:46 '@Deprecated(...) fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
+w: file:///C:/Users/NIKINTOSH/Documents/AntiGravity%20Projects/fleetcommand-admin-portal/inventory_offline_app/app/src/main/java/com/fleetcommand/workshop/ui/theme/Theme.kt:55:20 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+
+> Task :app:compileDebugJavaWithJavac
+> Task :app:hiltAggregateDepsDebug
+> Task :app:hiltJavaCompileDebug
+> Task :app:processDebugJavaRes
+> Task :app:transformDebugClassesWithAsm
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugJavaResource
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:mergeProjectDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+
+BUILD SUCCESSFUL in 1m 43s
+40 actionable tasks: 13 executed, 27 up-to-date

@@ -523,7 +523,7 @@ const Customers: React.FC = () => {
                           <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/30 dark:bg-slate-900/20">
                             <div className="flex items-center gap-2">
                               <span className="material-symbols-outlined text-primary">history</span>
-                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Rental History</h3>
+                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Recent Rental History</h3>
                             </div>
                             <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-[10px] font-black uppercase text-slate-500 tracking-wider">
                               {rentalHistory.length} Records
@@ -569,8 +569,8 @@ const Customers: React.FC = () => {
                                           )}
                                         </div>
                                         <div>
-                                          <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{booking.vehicle?.name || 'Unknown'}</p>
-                                          <p className="text-[10px] font-medium text-slate-500 uppercase">{booking.vehicle?.plate || 'No Plate'}</p>
+                                          <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight uppercase tracking-wide">{booking.vehicle?.plate || 'No Plate'}</p>
+                                          <p className="text-[10px] font-medium text-slate-500">{booking.vehicle?.name || 'Unknown'}</p>
                                         </div>
                                       </div>
                                     </td>
@@ -740,8 +740,8 @@ const Customers: React.FC = () => {
                                           {booking.vehicle?.image_url && <img src={booking.vehicle.image_url} alt="" className="size-full object-cover" />}
                                         </div>
                                         <div>
-                                          <p className="text-xs font-bold text-slate-900 dark:text-white leading-tight">{booking.vehicle?.name || 'Unknown'}</p>
-                                          <p className="text-[9px] font-medium text-slate-500">{booking.vehicle?.plate || 'No Plate'}</p>
+                                          <p className="text-xs font-bold text-slate-900 dark:text-white leading-tight uppercase tracking-wide">{booking.vehicle?.plate || 'No Plate'}</p>
+                                          <p className="text-[9px] font-medium text-slate-500">{booking.vehicle?.name || 'Unknown'}</p>
                                         </div>
                                       </div>
                                     </td>

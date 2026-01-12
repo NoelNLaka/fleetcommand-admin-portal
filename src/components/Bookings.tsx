@@ -9,6 +9,7 @@ const Bookings: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'List' | 'Calendar'>('List');
+  const [activeTab, setActiveTab] = useState<'All' | 'Reserved' | 'Active' | 'Extended'>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -23,6 +24,10 @@ const Bookings: React.FC = () => {
     status: BookingStatus.CONFIRMED,
     payment_status: PaymentStatus.UNPAID
   });
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [selectedDetailBooking, setSelectedDetailBooking] = useState<Booking | null>(null);
+  const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
+  const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
   const [newCustomerData, setNewCustomerData] = useState({
     name: '',
     email: '',
@@ -51,8 +56,10 @@ id,
   duration_days,
   status,
   payment_status,
+  total_amount,
   customer_id,
   vehicle_id,
+  customer:customers(name, email, license_image_url, address),
   vehicle: vehicles(name, plate),
   updated_by_profile:profiles!bookings_updated_by_fkey(id, full_name),
   updated_at
@@ -66,12 +73,16 @@ id,
         bookingId: `#BK-${b.id.slice(0, 4).toUpperCase()}`,
         customerName: b.customer?.name || 'Unknown Customer',
         customerEmail: b.customer?.email || '',
-        customerAvatar: `https://i.pravatar.cc/150?u=${b.customer_id}`, // Using customer_id for unique avatar
+        customerUuid: b.customer_id,
+        customerAddress: b.customer?.address || '',
+        customerAvatar: b.customer?.license_image_url || `https://i.pravatar.cc/150?u=${b.customer_id}`, // Using license_image_url as profile pic or fallback
         vehicleName: b.vehicle?.name || 'Unknown Vehicle',
         vehicleId: b.vehicle?.plate || '',
+        vehicleUuid: b.vehicle_id,
         startDate: b.start_date || '',
         endDate: b.end_date || '',
-        durationDays: b.duration_days || 0,
+        durationDays: b.duration_days || Math.ceil((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / (1000 * 60 * 60 * 24)) || 0,
+        totalAmount: b.total_amount || '$0.00',
         status: b.status as BookingStatus,
         paymentStatus: b.payment_status as PaymentStatus,
         updatedAt: b.updated_at,
@@ -113,7 +124,7 @@ id,
       setIsSearchingCustomers(true);
       const { data, error } = await supabase
         .from('customers')
-        .select('id, name, email, phone, license_number')
+        .select('id, name, email, phone, license_number, address')
         .eq('org_id', profile.org_id)
         .ilike('name', `%${query}%`)
         .limit(5);
@@ -151,7 +162,7 @@ id,
       let customerId = selectedCustomer?.id;
 
       // 1. If new customer, register them first
-      if (isNewCustomer) {
+      if (isNewCustomer && !selectedBooking) {
         const { data: customerData, error: customerError } = await supabase
           .from('customers')
           .insert([{
@@ -176,29 +187,96 @@ id,
         return;
       }
 
-      // 2. Create the booking
-      const { error: bookingError } = await supabase
-        .from('bookings')
-        .insert([{
-          ...newBooking,
-          customer_id: customerId,
-          org_id: profile.org_id,
-          updated_by: profile?.id
-        }]);
+      // Calculate duration
+      const start = new Date(newBooking.start_date);
+      const end = new Date(newBooking.end_date);
+      const duration_days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 
-      if (bookingError) throw bookingError;
+      if (selectedBooking) {
+        // Update existing booking
+        const { error: updateError } = await supabase
+          .from('bookings')
+          .update({
+            vehicle_id: newBooking.vehicle_id,
+            start_date: newBooking.start_date,
+            end_date: newBooking.end_date,
+            duration_days: duration_days,
+            status: newBooking.status,
+            payment_status: newBooking.payment_status,
+            customer_id: customerId,
+            updated_by: profile.id,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', selectedBooking.id);
+
+        if (updateError) throw updateError;
+      } else {
+        // Create new booking
+        const { error: bookingError } = await supabase
+          .from('bookings')
+          .insert([{
+            ...newBooking,
+            duration_days: duration_days,
+            customer_id: customerId,
+            org_id: profile.org_id,
+            updated_by: profile?.id
+          }]);
+
+        if (bookingError) throw bookingError;
+      }
+
+      // Auto-update vehicle location if Paid
+      if (newBooking.payment_status === PaymentStatus.PAID) {
+        let addressToUpdate = '';
+        if (isNewCustomer) {
+          addressToUpdate = newCustomerData.address;
+        } else if (selectedCustomer?.address) {
+          addressToUpdate = selectedCustomer.address;
+        }
+
+        if (addressToUpdate) {
+          await supabase
+            .from('vehicles')
+            .update({ location: addressToUpdate })
+            .eq('id', newBooking.vehicle_id);
+        }
+      }
 
       // 3. Success!
       setIsAddModalOpen(false);
       resetForm();
       fetchBookings();
     } catch (error) {
-      console.error('Error creating booking:', error);
-      alert('Failed to create booking. Please check the logs.');
+      console.error('Error saving booking:', error);
+      alert('Failed to save booking. Please check the logs.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleEditClick = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setNewBooking({
+      vehicle_id: booking.vehicleUuid || '',
+      start_date: booking.startDate,
+      end_date: booking.endDate,
+      status: booking.status,
+      payment_status: booking.paymentStatus
+    });
+
+    // Mock a selected customer object for display since we don't have full customer details
+    if (booking.customerUuid) {
+      setSelectedCustomer({
+        id: booking.customerUuid,
+        name: booking.customerName,
+        email: booking.customerEmail,
+        address: booking.customerAddress
+      });
+    }
+
+    setIsAddModalOpen(true);
+  };
+
 
   const resetForm = () => {
     setNewBooking({
@@ -219,7 +297,9 @@ id,
     });
     setCustomerSearchQuery('');
     setSelectedCustomer(null);
+    setSelectedCustomer(null);
     setIsNewCustomer(false);
+    setSelectedBooking(null);
   };
 
   const stats = [
@@ -264,6 +344,7 @@ id,
       case BookingStatus.COMPLETED: return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300';
       case BookingStatus.OVERDUE: return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
       case BookingStatus.CONFIRMED: return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+      case BookingStatus.EXTENDED: return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
       default: return 'bg-slate-100 text-slate-800';
     }
   };
@@ -313,7 +394,10 @@ id,
               Export
             </button>
             <button
-              onClick={() => setIsAddModalOpen(true)}
+              onClick={() => {
+                resetForm();
+                setIsAddModalOpen(true);
+              }}
               className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg hover:bg-primary/90 transition-all shadow-sm"
             >
               <span className="material-symbols-outlined text-[20px]">add</span>
@@ -347,6 +431,23 @@ id,
 
       {/* Table Section */}
       <div className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+        <div className="border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center px-4 md:px-6">
+            {['All', 'Reserved', 'Active', 'Extended'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab as any)}
+                className={`px-4 py-4 text-sm font-bold border-b-2 transition-all ${activeTab === tab
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Table Filters */}
         <div className="p-4 md:p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-4 justify-between items-center">
           <div className="flex items-center gap-4 w-full sm:w-auto">
@@ -400,17 +501,27 @@ id,
                   <th className="px-6 py-4">Customer</th>
                   <th className="px-6 py-4">Vehicle</th>
                   <th className="px-6 py-4">Duration</th>
-                  <th className="px-6 py-4 text-center">Status</th>
                   <th className="px-6 py-4">Payment</th>
                   <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {bookings.map((booking) => (
+                {bookings.filter(b => {
+                  if (activeTab === 'All') return true;
+                  if (activeTab === 'Reserved') return b.status === BookingStatus.CONFIRMED || b.status === BookingStatus.PENDING_PICKUP;
+                  if (activeTab === 'Active') return b.status === BookingStatus.ACTIVE;
+                  if (activeTab === 'Extended') return b.status === BookingStatus.EXTENDED;
+                  return true;
+                }).map((booking) => (
                   <tr key={booking.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="px-6 py-5">
                       <div className="flex flex-col">
-                        <span className="font-bold text-primary">{booking.bookingId}</span>
+                        <button
+                          onClick={() => setSelectedDetailBooking(booking)}
+                          className="font-bold text-primary hover:underline text-left"
+                        >
+                          {booking.bookingId}
+                        </button>
                         {booking.updatedBy && (
                           <span className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-0.5" title={`Last edited by ${booking.updatedBy.fullName} on ${new Date(booking.updatedAt!).toLocaleString()}`}>
                             <span className="material-symbols-outlined text-[12px]">edit_note</span>
@@ -431,24 +542,23 @@ id,
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                      <p className="font-bold text-slate-900 dark:text-white leading-none">{booking.vehicleName}</p>
-                      <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">{booking.vehicleId}</p>
+                      <p className="font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wider">{booking.vehicleId}</p>
+                      <p className="text-xs text-slate-500 mt-1">{booking.vehicleName}</p>
                     </td>
                     <td className="px-6 py-5">
                       <p className="font-bold text-slate-900 dark:text-white leading-none">{booking.startDate} - {booking.endDate}</p>
                       <p className="text-xs text-slate-500 mt-1">{booking.durationDays} days</p>
                     </td>
-                    <td className="px-6 py-5 text-center">
-                      <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${getStatusColor(booking.status)}`}>
-                        {booking.status.replace('_', ' ')}
-                      </span>
-                    </td>
                     <td className="px-6 py-5">
                       {getPaymentStatus(booking.paymentStatus)}
                     </td>
                     <td className="px-6 py-5 text-center">
-                      <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                        <span className="material-symbols-outlined">more_vert</span>
+                      <button
+                        onClick={() => handleEditClick(booking)}
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                        title="Edit Booking"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">edit</span>
                       </button>
                     </td>
                   </tr>
@@ -467,23 +577,140 @@ id,
           </div>
         </div>
       </div>
+
+      {/* Booking Details Slide-over */}
+      {selectedDetailBooking && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+            onClick={() => setSelectedDetailBooking(null)}
+          ></div>
+
+          {/* Slide-over Panel */}
+          <div className="relative w-full max-w-md bg-white dark:bg-surface-dark h-full shadow-2xl p-6 overflow-y-auto animate-in slide-in-from-right duration-300">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Booking Details</h2>
+                <p className="text-slate-500 text-sm mt-1">Review complete reservation information.</p>
+              </div>
+              <button
+                onClick={() => setSelectedDetailBooking(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors bg-slate-50 dark:bg-slate-800 rounded-full"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-8">
+              {/* Status Badge */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <span className="text-slate-500 font-medium text-sm">Status</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${getStatusColor(selectedDetailBooking.status)}`}>
+                  {selectedDetailBooking.status}
+                </span>
+              </div>
+
+              {/* Customer Details */}
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Customer Information</h3>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="size-12 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden ring-4 ring-slate-50 dark:ring-slate-900">
+                    <img src={selectedDetailBooking.customerAvatar} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-slate-900 dark:text-white">{selectedDetailBooking.customerName}</p>
+                    <p className="text-slate-500 text-sm">{selectedDetailBooking.customerEmail}</p>
+                  </div>
+                </div>
+                {selectedDetailBooking.customerAddress && (
+                  <div className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/30 p-3 rounded-xl">
+                    <span className="material-symbols-outlined text-slate-400 mt-0.5">location_on</span>
+                    <p>{selectedDetailBooking.customerAddress}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Vehicle Details */}
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Vehicle Information</h3>
+                <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-lg font-bold text-slate-900 dark:text-white">{selectedDetailBooking.vehicleName}</p>
+                      <p className="text-slate-500 text-sm mt-1">{selectedDetailBooking.vehicleId}</p>
+                    </div>
+                    <span className="material-symbols-outlined text-slate-300 text-4xl">directions_car</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reservation Details */}
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Reservation Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900/30 rounded-2xl">
+                    <p className="text-xs text-slate-500 font-bold mb-1">Start Date</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{selectedDetailBooking.startDate}</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900/30 rounded-2xl">
+                    <p className="text-xs text-slate-500 font-bold mb-1">End Date</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{selectedDetailBooking.endDate}</p>
+                  </div>
+                  <div className="col-span-2 p-4 bg-slate-50 dark:bg-slate-900/30 rounded-2xl flex justify-between items-center">
+                    <p className="text-xs text-slate-500 font-bold">Duration</p>
+                    <p className="font-bold text-slate-900 dark:text-white">{selectedDetailBooking.durationDays} Days</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment & Total */}
+              <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex justify-between items-center mb-6">
+                  <span className="text-sm font-bold text-slate-500">Payment Status</span>
+                  {getPaymentStatus(selectedDetailBooking.paymentStatus)}
+                </div>
+
+                <div className="flex justify-between items-end bg-primary/5 dark:bg-primary/10 p-5 rounded-2xl border border-primary/10">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest text-primary mb-1">Total Amount</p>
+                    <p className="text-xs text-slate-500">Includes taxes & fees</p>
+                  </div>
+                  <p className="text-3xl font-black text-slate-900 dark:text-white">{selectedDetailBooking.totalAmount}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Booking Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
-            onClick={() => setIsAddModalOpen(false)}
+            onClick={() => {
+              setIsAddModalOpen(false);
+              resetForm();
+            }}
           ></div>
 
           <div className="relative bg-white dark:bg-surface-dark w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
             {/* Modal Header */}
             <div className="px-5 py-4 md:px-8 md:py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">New Booking</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Create a new reservation for a customer.</p>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  {selectedBooking ? 'Edit Booking' : 'New Booking'}
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {selectedBooking ? 'Update reservation details.' : 'Create a new reservation for a customer.'}
+                </p>
               </div>
               <button
-                onClick={() => setIsAddModalOpen(false)}
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  resetForm();
+                }}
                 className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
               >
                 <span className="material-symbols-outlined">close</span>
@@ -502,8 +729,9 @@ id,
                         type="button"
                         onClick={() => setIsNewCustomer(!isNewCustomer)}
                         className="text-xs font-bold text-primary hover:underline"
+                        disabled={!!selectedBooking}
                       >
-                        {isNewCustomer ? 'Search Existing Customer' : 'Register New Customer'}
+                        {!!selectedBooking ? '' : (isNewCustomer ? 'Search Existing Customer' : 'Register New Customer')}
                       </button>
                     </div>
 
@@ -626,17 +854,93 @@ id,
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Select Vehicle</label>
-                        <select
-                          required
-                          value={newBooking.vehicle_id}
-                          onChange={(e) => setNewBooking({ ...newBooking, vehicle_id: e.target.value })}
-                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none appearance-none cursor-pointer"
-                        >
-                          <option value="">Choose a vehicle...</option>
-                          {vehicles.map(v => (
-                            <option key={v.id} value={v.id}>{v.name} ({v.plate})</option>
-                          ))}
-                        </select>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none text-left flex items-center justify-between"
+                          >
+                            {newBooking.vehicle_id ? (
+                              (() => {
+                                const v = vehicles.find(v => v.id === newBooking.vehicle_id);
+                                return v ? (
+                                  <div className="flex flex-col items-start text-left">
+                                    <span className="font-bold text-slate-900 dark:text-white leading-tight uppercase tracking-wide">{v.plate}</span>
+                                    <span className="text-xs text-slate-500">{v.name}</span>
+                                  </div>
+                                ) : <span className="text-slate-500">Choose a vehicle...</span>
+                              })()
+                            ) : (
+                              <span className="text-slate-500">Choose a vehicle...</span>
+                            )}
+                            <span className="material-symbols-outlined text-slate-400">expand_more</span>
+                          </button>
+
+                          {/* Hidden input for form validation */}
+                          <input
+                            type="text"
+                            required
+                            value={newBooking.vehicle_id}
+                            onChange={() => { }}
+                            className="absolute opacity-0 pointer-events-none h-0 w-0 bottom-0"
+                            tabIndex={-1}
+                          />
+
+                          {isVehicleDropdownOpen && (
+                            <>
+                              <div className="fixed inset-0 z-20" onClick={() => setIsVehicleDropdownOpen(false)}></div>
+                              <div className="absolute z-30 w-full mt-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 max-h-60 flex flex-col">
+                                <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-surface-dark z-10">
+                                  <div className="relative">
+                                    <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                                    <input
+                                      type="text"
+                                      placeholder="Search vehicle..."
+                                      value={vehicleSearchQuery}
+                                      onChange={(e) => setVehicleSearchQuery(e.target.value)}
+                                      className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                      autoFocus
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="overflow-y-auto">
+                                  {vehicles
+                                    .filter(v =>
+                                      v.name.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+                                      v.plate.toLowerCase().includes(vehicleSearchQuery.toLowerCase())
+                                    )
+                                    .map(v => (
+                                      <button
+                                        key={v.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setNewBooking({ ...newBooking, vehicle_id: v.id });
+                                          setIsVehicleDropdownOpen(false);
+                                          setVehicleSearchQuery('');
+                                        }}
+                                        className="w-full px-4 py-3 flex flex-col items-start gap-0.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-none"
+                                      >
+                                        <div className="flex items-center justify-between w-full">
+                                          <span className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wide">{v.plate}</span>
+                                          {newBooking.vehicle_id === v.id && <span className="material-symbols-outlined text-primary text-sm">check</span>}
+                                        </div>
+                                        <span className="text-xs text-slate-500">{v.name}</span>
+                                      </button>
+                                    ))}
+                                  {vehicles.filter(v =>
+                                    v.name.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+                                    v.plate.toLowerCase().includes(vehicleSearchQuery.toLowerCase())
+                                  ).length === 0 && (
+                                      <div className="p-4 text-center text-xs text-slate-500">
+                                        No vehicles found
+                                      </div>
+                                    )}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Start Date</label>
@@ -668,6 +972,7 @@ id,
                           <option value={BookingStatus.CONFIRMED}>Confirmed</option>
                           <option value={BookingStatus.PENDING_PICKUP}>Pending Pickup</option>
                           <option value={BookingStatus.ACTIVE}>Active</option>
+                          <option value={BookingStatus.EXTENDED}>Extended</option>
                         </select>
                       </div>
                       <div>
@@ -693,7 +998,10 @@ id,
               <button
                 type="button"
                 disabled={isSubmitting}
-                onClick={() => setIsAddModalOpen(false)}
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  resetForm();
+                }}
                 className="px-6 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
               >
                 Cancel
@@ -705,7 +1013,7 @@ id,
                 className="px-8 py-2.5 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
               >
                 {isSubmitting && <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
-                {isSubmitting ? 'Creating...' : 'Create Booking'}
+                {isSubmitting ? (selectedBooking ? 'Updating...' : 'Creating...') : (selectedBooking ? 'Update Booking' : 'Create Booking')}
               </button>
             </div>
           </div>

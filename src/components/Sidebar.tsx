@@ -36,8 +36,8 @@ const Sidebar: React.FC<SidebarProps> = ({ className = "", onMobileItemClick }) 
             title: 'Main',
             items: [
                 { id: 'dashboard', label: 'Dashboard', icon: 'grid_view', path: '/dashboard', roles: [UserRole.SUPERADMIN, UserRole.ADMIN] },
-                { id: 'customers', label: 'Customers', icon: 'group', path: '/customers', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER] },
                 { id: 'bookings', label: 'Bookings', icon: 'book_online', path: '/bookings', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER] },
+                { id: 'customers', label: 'Customers', icon: 'group', path: '/customers', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER] },
             ]
         },
         {

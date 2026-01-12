@@ -18,6 +18,8 @@ const Maintenance: React.FC = () => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<MaintenanceTask | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
+  const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
 
   const emptyTask = {
     vehicle_id: '',
@@ -40,7 +42,7 @@ const Maintenance: React.FC = () => {
         .from('maintenance_records')
         .select(`
           *,
-          vehicle: vehicles(name, vin, image_url),
+          vehicle: vehicles(name, plate, image_url),
           assigned_staff: staff(id, first_name, last_name),
           updated_by_profile:profiles!maintenance_records_updated_by_fkey(id, full_name)
         `)
@@ -64,7 +66,7 @@ const Maintenance: React.FC = () => {
           workOrderNumber: t.work_order_number || 'N/A',
           staffId: t.staff_id,
           vehicleName: t.vehicle?.name || 'Unknown Vehicle',
-          vehicleVin: t.vehicle?.vin || 'N/A',
+          vehicleVin: t.vehicle?.plate || 'N/A', // Using plate as the primary identifier requested as 'Rego'
           vehicleImage: t.vehicle?.image_url || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=300',
           serviceType: t.service_type || 'General Maintenance',
           status: normalizedStatus,
@@ -443,8 +445,8 @@ const Maintenance: React.FC = () => {
                           <img src={task.vehicleImage} alt="" className="size-full object-cover" />
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 dark:text-white leading-tight">{task.vehicleName}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">{task.vehicleVin}</p>
+                          <p className="font-bold text-slate-900 dark:text-white leading-tight uppercase tracking-wide">{task.vehicleVin}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{task.vehicleName}</p>
                         </div>
                       </div>
                     </td>
@@ -704,17 +706,93 @@ const Maintenance: React.FC = () => {
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Vehicle</label>
-                        <select
-                          required
-                          value={newTask.vehicle_id}
-                          onChange={(e) => setNewTask({ ...newTask, vehicle_id: e.target.value })}
-                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all appearance-none cursor-pointer"
-                        >
-                          <option value="">Select a vehicle...</option>
-                          {vehicles.map(v => (
-                            <option key={v.id} value={v.id}>{v.name} ({v.plate})</option>
-                          ))}
-                        </select>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
+                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none text-left flex items-center justify-between"
+                          >
+                            {newTask.vehicle_id ? (
+                              (() => {
+                                const v = vehicles.find(v => v.id === newTask.vehicle_id);
+                                return v ? (
+                                  <div className="flex flex-col items-start text-left">
+                                    <span className="font-bold text-slate-900 dark:text-white leading-tight uppercase tracking-wide">{v.plate}</span>
+                                    <span className="text-xs text-slate-500">{v.name}</span>
+                                  </div>
+                                ) : <span className="text-slate-500">Select a vehicle...</span>
+                              })()
+                            ) : (
+                              <span className="text-slate-500">Select a vehicle...</span>
+                            )}
+                            <span className="material-symbols-outlined text-slate-400">expand_more</span>
+                          </button>
+
+                          {/* Hidden input for form validation */}
+                          <input
+                            type="text"
+                            required
+                            value={newTask.vehicle_id}
+                            onChange={() => { }}
+                            className="absolute opacity-0 pointer-events-none h-0 w-0 bottom-0"
+                            tabIndex={-1}
+                          />
+
+                          {isVehicleDropdownOpen && (
+                            <>
+                              <div className="fixed inset-0 z-20" onClick={() => setIsVehicleDropdownOpen(false)}></div>
+                              <div className="absolute z-30 w-full mt-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 max-h-60 flex flex-col">
+                                <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-surface-dark z-10">
+                                  <div className="relative">
+                                    <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                                    <input
+                                      type="text"
+                                      placeholder="Search vehicle..."
+                                      value={vehicleSearchQuery}
+                                      onChange={(e) => setVehicleSearchQuery(e.target.value)}
+                                      className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                      autoFocus
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="overflow-y-auto">
+                                  {vehicles
+                                    .filter(v =>
+                                      v.name.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+                                      v.plate.toLowerCase().includes(vehicleSearchQuery.toLowerCase())
+                                    )
+                                    .map(v => (
+                                      <button
+                                        key={v.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setNewTask({ ...newTask, vehicle_id: v.id });
+                                          setIsVehicleDropdownOpen(false);
+                                          setVehicleSearchQuery('');
+                                        }}
+                                        className="w-full px-4 py-3 flex flex-col items-start gap-0.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-none"
+                                      >
+                                        <div className="flex items-center justify-between w-full">
+                                          <span className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wide">{v.plate}</span>
+                                          {newTask.vehicle_id === v.id && <span className="material-symbols-outlined text-primary text-sm">check</span>}
+                                        </div>
+                                        <span className="text-xs text-slate-500">{v.name}</span>
+                                      </button>
+                                    ))}
+                                  {vehicles.filter(v =>
+                                    v.name.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+                                    v.plate.toLowerCase().includes(vehicleSearchQuery.toLowerCase())
+                                  ).length === 0 && (
+                                      <div className="p-4 text-center text-xs text-slate-500">
+                                        No vehicles found
+                                      </div>
+                                    )}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="md:col-span-2">

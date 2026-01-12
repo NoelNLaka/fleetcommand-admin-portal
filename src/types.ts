@@ -4,7 +4,8 @@ export enum BookingStatus {
   COMPLETED = 'Completed',
   OVERDUE = 'Overdue',
   PENDING_PICKUP = 'Pending Pickup',
-  CONFIRMED = 'Confirmed'
+  CONFIRMED = 'Confirmed',
+  EXTENDED = 'Extended'
 }
 
 export enum UserRole {
@@ -88,16 +89,20 @@ export interface Booking {
   bookingId: string;
   vehicleName: string;
   vehicleId: string;
+  vehicleUuid?: string;
   vehicleImage?: string;
   licensePlate?: string;
   customerName: string;
   customerEmail: string;
+  customerUuid?: string;
+  customerAddress?: string;
   customerAvatar: string;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   startDate: string;
   endDate: string;
   durationDays: number;
+  totalAmount: string;
   updatedAt?: string;
   updatedBy?: {
     id: string;
@@ -210,4 +215,11 @@ export interface Stat {
   iconColor: string;
   subLabel?: string;
   percentage?: number;
+}
+
+export interface BranchLocation {
+  id: string;
+  name: string;
+  address: string;
+  isDefault: boolean;
 }
