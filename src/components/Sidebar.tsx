@@ -14,6 +14,7 @@ interface NavItem {
     icon: string;
     path: string;
     roles: UserRole[];
+    subItems?: Omit<NavItem, 'icon' | 'roles'>[];
 }
 
 interface NavSection {
@@ -24,10 +25,20 @@ interface NavSection {
 const Sidebar: React.FC<SidebarProps> = ({ className = "", onMobileItemClick }) => {
     const { user, profile, loading, signOut } = useAuth();
     const navigate = useNavigate();
+    const [expandedItems, setExpandedItems] = React.useState<string[]>([]);
 
     const handleSignOut = async () => {
         await signOut();
         navigate('/');
+    };
+
+    const toggleExpand = (e: React.MouseEvent, itemId: string) => {
+        e.preventDefault();
+        setExpandedItems(prev =>
+            prev.includes(itemId)
+                ? prev.filter(id => id !== itemId)
+                : [...prev, itemId]
+        );
     };
 
     // Define navigation sections
@@ -43,9 +54,24 @@ const Sidebar: React.FC<SidebarProps> = ({ className = "", onMobileItemClick }) 
         {
             title: 'Operations',
             items: [
-                { id: 'inventory', label: 'Fleet', icon: 'directions_car', path: '/inventory', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC] },
+                { id: 'fleet', label: 'Fleet', icon: 'directions_car', path: '/inventory', roles: [UserRole.SUPERADMIN, UserRole.ADMIN] },
                 { id: 'maintenance', label: 'Maintenance', icon: 'handyman', path: '/maintenance', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC] },
+                {
+                    id: 'inventory',
+                    label: 'Inventory',
+                    icon: 'inventory_2',
+                    path: '/inventory/parts',
+                    roles: [UserRole.WORKSHOP_SUPERVISOR],
+                    subItems: [
+                        { id: 'parts', label: 'Parts', path: '/inventory/parts' },
+                        { id: 'fuel', label: 'Fuel', path: '/inventory/fuel' },
+                        { id: 'tyres', label: 'Tyres', path: '/inventory/tyres' },
+                        { id: 'tools', label: 'Tools', path: '/inventory/tools' },
+                    ]
+                },
+                { id: 'suppliers', label: 'Suppliers', icon: 'local_shipping', path: '/inventory/suppliers', roles: [UserRole.WORKSHOP_SUPERVISOR] },
                 { id: 'insurance', label: 'Insurance', icon: 'shield', path: '/insurance', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR] },
+                { id: 'workshop-staff', label: 'Workshop Staff', icon: 'badge', path: '/staff/workshop', roles: [UserRole.WORKSHOP_SUPERVISOR] },
             ]
         },
         {
@@ -102,33 +128,71 @@ const Sidebar: React.FC<SidebarProps> = ({ className = "", onMobileItemClick }) 
                                     {section.title}
                                 </h3>
 
-                                {/* Section Items */}
-                                {section.items.map((item) => (
-                                    <NavLink
-                                        key={item.id}
-                                        to={item.path}
-                                        onClick={onMobileItemClick}
-                                        className={({ isActive }) => `flex items-center gap-4 px-4 py-2.5 rounded-xl transition-all group ${isActive
-                                            ? 'bg-primary/10 text-primary'
-                                            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                            }`}
-                                    >
-                                        {({ isActive }) => (
-                                            <>
-                                                <span className={`material-symbols-outlined text-[20px] ${isActive ? 'filled' : 'group-hover:scale-110 transition-transform'}`}>
-                                                    {item.icon}
-                                                </span>
-                                                <span className={`text-sm font-semibold tracking-tight ${isActive ? '' : 'group-hover:text-slate-900 dark:group-hover:text-white'}`}>
-                                                    {item.label}
-                                                </span>
-                                            </>
-                                        )}
-                                    </NavLink>
-                                ))}
+                                { /* Section Items */}
+                                {section.items.map((item) => {
+                                    const hasSubItems = item.subItems && item.subItems.length > 0;
+                                    const isExpanded = expandedItems.includes(item.id);
+                                    const isSubPathActive = item.subItems?.some(si => location.pathname === si.path);
+
+                                    return (
+                                        <div key={item.id} className="space-y-1">
+                                            <NavLink
+                                                to={item.path}
+                                                onClick={(e) => {
+                                                    if (hasSubItems) {
+                                                        toggleExpand(e, item.id);
+                                                    } else {
+                                                        onMobileItemClick?.();
+                                                    }
+                                                }}
+                                                className={({ isActive }) => `flex items-center gap-4 px-4 py-2.5 rounded-xl transition-all group ${isActive || isSubPathActive
+                                                    ? 'bg-primary/10 text-primary'
+                                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                    }`}
+                                            >
+                                                {({ isActive }) => (
+                                                    <>
+                                                        <span className={`material-symbols-outlined text-[20px] ${isActive || isSubPathActive ? 'filled' : 'group-hover:scale-110 transition-transform'}`}>
+                                                            {item.icon}
+                                                        </span>
+                                                        <span className={`text-sm font-semibold tracking-tight ${(isActive || isSubPathActive) ? '' : 'group-hover:text-slate-900 dark:group-hover:text-white'}`}>
+                                                            {item.label}
+                                                        </span>
+                                                        {hasSubItems && (
+                                                            <span className={`material-symbols-outlined ml-auto text-[18px] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                                expand_more
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </NavLink>
+
+                                            {/* Render Sub-items if any */}
+                                            {hasSubItems && isExpanded && (
+                                                <div className="ml-12 space-y-1">
+                                                    {item.subItems?.map((subItem) => (
+                                                        <NavLink
+                                                            key={subItem.id}
+                                                            to={subItem.path}
+                                                            onClick={onMobileItemClick}
+                                                            className={({ isActive }) => `flex items-center gap-4 px-3 py-1.5 rounded-lg transition-all text-xs font-medium ${isActive
+                                                                ? 'text-primary'
+                                                                : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                                                                }`}
+                                                        >
+                                                            {subItem.label}
+                                                        </NavLink>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         ))
                     )}
                 </nav>
+
 
                 {/* Bottom Section - User Profile */}
                 <div className="p-4 border-t border-slate-100 dark:border-slate-800">

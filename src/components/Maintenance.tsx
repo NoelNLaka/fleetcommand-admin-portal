@@ -20,6 +20,7 @@ const Maintenance: React.FC = () => {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
   const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
+  const [partsSearchQuery, setPartsSearchQuery] = useState('');
 
   const emptyTask = {
     vehicle_id: '',
@@ -32,6 +33,15 @@ const Maintenance: React.FC = () => {
   };
 
   const [newTask, setNewTask] = useState(emptyTask);
+
+  const INVENTORY_PARTS = [
+    { id: 1, name: 'Oil Filter', stock: 25, total: 50, category: 'Filters', status: 'Healthy' },
+    { id: 2, name: 'Brake Pads', stock: 5, total: 30, category: 'Braking', status: 'Low' },
+    { id: 3, name: 'Tires (205/55R16)', stock: 12, total: 20, category: 'Tires', status: 'Healthy' },
+    { id: 4, name: 'Headlight Bulb', stock: 2, total: 15, category: 'Electrical', status: 'Low' },
+    { id: 5, name: 'Air Filter', stock: 18, total: 40, category: 'Filters', status: 'Healthy' },
+    { id: 6, name: 'Coolant (5L)', stock: 3, total: 20, category: 'Fluids', status: 'Critical' },
+  ];
 
   const fetchTasks = async () => {
     if (!profile?.org_id) return;
@@ -392,7 +402,7 @@ const Maintenance: React.FC = () => {
         </div>
       </div>
 
-      {/* Maintenance Table */}
+      {/* Maintenance Table Section */}
       <div className="border-t border-slate-100 dark:border-slate-800 -mx-4 md:mx-0">
         <div className="overflow-x-auto">
           {loading ? (
@@ -517,6 +527,7 @@ const Maintenance: React.FC = () => {
           )}
         </div>
       </div>
+
 
       {/* Work Order Details Drawer */}
       {isDetailsOpen && selectedTask && (

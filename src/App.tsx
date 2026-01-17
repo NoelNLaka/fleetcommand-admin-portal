@@ -12,6 +12,12 @@ import Insurance from './components/Insurance';
 import Reports from './components/Reports';
 import Staff from './components/Staff';
 import Settings from './components/Settings';
+import InventoryParts from './components/InventoryParts';
+import InventoryFuel from './components/InventoryFuel';
+import InventoryTyres from './components/InventoryTyres';
+import InventoryTools from './components/InventoryTools';
+import Suppliers from './components/Suppliers';
+import WorkshopStaff from './components/WorkshopStaff';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import SuccessPage from './pages/SuccessPage';
@@ -26,7 +32,7 @@ const RoleRoute: React.FC<{ allowedRoles: UserRole[], children: React.ReactNode 
     if (!profile || !allowedRoles.includes(profile.role as UserRole)) {
         // Redirect to their default page based on role
         if (profile?.role === UserRole.WORKSHOP_SUPERVISOR || profile?.role === UserRole.MECHANIC) {
-            return <Navigate to="/inventory" replace />;
+            return <Navigate to="/maintenance" replace />;
         }
         if (profile?.role === UserRole.CLIENT_OFFICER) {
             return <Navigate to="/bookings" replace />;
@@ -58,7 +64,7 @@ const ProtectedLayout: React.FC = () => {
     // Redirect users from protected root to their default page based on role
     if (location.pathname === '/' || location.pathname === '') {
         if (profile?.role === UserRole.WORKSHOP_SUPERVISOR || profile?.role === UserRole.MECHANIC) {
-            return <Navigate to="/inventory" replace />;
+            return <Navigate to="/maintenance" replace />;
         }
         if (profile?.role === UserRole.CLIENT_OFFICER) {
             return <Navigate to="/bookings" replace />;
@@ -70,12 +76,19 @@ const ProtectedLayout: React.FC = () => {
         const path = location.pathname.split('/')[1];
         switch (path) {
             case 'maintenance': return 'Maintenance Scheduling';
+            case 'suppliers': return 'Suppliers Management';
             case 'insurance': return 'Insurance & Registration';
             case 'reports': return 'Reports Dashboard';
-            case 'staff': return 'Staff Management';
+            case 'staff':
+                if (location.pathname.includes('/staff/workshop')) return 'Workshop Staff Management';
+                return 'Staff Management';
             case 'dashboard': return 'Fleet Analytics';
             case 'bookings': return 'Booking Management';
             case 'inventory': return 'Fleet Inventory';
+            case 'inventory/parts': return 'Parts Inventory';
+            case 'inventory/fuel': return 'Fuel Inventory';
+            case 'inventory/tyres': return 'Tyre Inventory';
+            case 'inventory/tools': return 'Tools & Equipment';
             case 'customers': return 'Customer Management';
             case 'settings': return 'System Settings';
             default: return undefined;
@@ -129,8 +142,33 @@ const App: React.FC = () => {
                     </RoleRoute>
                 } />
                 <Route path="/inventory" element={
-                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC]}>
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN]}>
                         <Inventory />
+                    </RoleRoute>
+                } />
+                <Route path="/inventory/parts" element={
+                    <RoleRoute allowedRoles={[UserRole.WORKSHOP_SUPERVISOR]}>
+                        <InventoryParts />
+                    </RoleRoute>
+                } />
+                <Route path="/inventory/fuel" element={
+                    <RoleRoute allowedRoles={[UserRole.WORKSHOP_SUPERVISOR]}>
+                        <InventoryFuel />
+                    </RoleRoute>
+                } />
+                <Route path="/inventory/tyres" element={
+                    <RoleRoute allowedRoles={[UserRole.WORKSHOP_SUPERVISOR]}>
+                        <InventoryTyres />
+                    </RoleRoute>
+                } />
+                <Route path="/inventory/tools" element={
+                    <RoleRoute allowedRoles={[UserRole.WORKSHOP_SUPERVISOR]}>
+                        <InventoryTools />
+                    </RoleRoute>
+                } />
+                <Route path="/inventory/suppliers" element={
+                    <RoleRoute allowedRoles={[UserRole.WORKSHOP_SUPERVISOR]}>
+                        <Suppliers />
                     </RoleRoute>
                 } />
                 <Route path="/customers" element={
@@ -146,6 +184,11 @@ const App: React.FC = () => {
                 <Route path="/maintenance" element={
                     <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC]}>
                         <Maintenance />
+                    </RoleRoute>
+                } />
+                <Route path="/staff/workshop" element={
+                    <RoleRoute allowedRoles={[UserRole.WORKSHOP_SUPERVISOR]}>
+                        <WorkshopStaff />
                     </RoleRoute>
                 } />
                 <Route path="/insurance" element={

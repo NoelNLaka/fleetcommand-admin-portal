@@ -10,11 +10,15 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, title }) => {
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
 
   return (
-    <header className="h-16 flex items-center justify-between px-4 md:px-6 bg-surface-light dark:bg-surface-dark border-b border-slate-200 dark:border-slate-800 shrink-0 z-20 relative">
+    <header className="h-16 flex items-center justify-between px-4 md:px-6 bg-surface-light dark:bg-surface-dark border-b border-slate-200 dark:border-slate-800 shrink-0 z-50 relative">
       <div className="flex items-center gap-4">
         {/* Mobile Menu Trigger */}
-        <button onClick={onMenuClick} className="md:hidden text-slate-500">
-          <span className="material-symbols-outlined">menu</span>
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg active:bg-slate-200 dark:active:bg-slate-700"
+        >
+          <span className="material-symbols-outlined text-2xl">menu</span>
         </button>
         {title && <h2 className="hidden md:block font-black text-lg text-slate-900 dark:text-white tracking-tight">{title}</h2>}
       </div>
