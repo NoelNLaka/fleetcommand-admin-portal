@@ -7,9 +7,12 @@ interface StaffMember {
     id: string;
     first_name: string;
     last_name: string;
+    email: string;
     department: string;
     job_title: string;
     job_id: string;
+    role: string;
+    auth_user_id: string;
     created_at: string;
 }
 
@@ -24,10 +27,29 @@ const Staff: React.FC = () => {
     const [newStaff, setNewStaff] = useState({
         first_name: '',
         last_name: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
         department: '',
         job_title: '',
-        job_id: ''
+        job_id: '',
+        role: UserRole.MECHANIC
     });
+
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+    const [editForm, setEditForm] = useState({
+        first_name: '',
+        last_name: '',
+        email: '',
+        department: '',
+        job_title: '',
+        job_id: '',
+        role: UserRole.MECHANIC
+    });
+
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const fetchStaff = async () => {
         if (!profile?.org_id) {
@@ -60,29 +82,140 @@ const Staff: React.FC = () => {
         e.preventDefault();
         if (!profile?.org_id) return;
 
+        // Validate passwords match
+        if (newStaff.password !== newStaff.confirmPassword) {
+            alert('Passwords do not match!');
+            return;
+        }
+
+        // Validate password length
+        if (newStaff.password.length < 8) {
+            alert('Password must be at least 8 characters long.');
+            return;
+        }
+
         try {
             setIsSubmitting(true);
-            const { error } = await supabase
-                .from('staff')
-                .insert([{
-                    ...newStaff,
-                    org_id: profile.org_id
-                }]);
 
-            if (error) throw error;
+            // Get the current session token
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                throw new Error('You must be logged in to create staff members');
+            }
+
+            // Call the Edge Function to create the user
+            const response = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-staff-user`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({
+                        email: newStaff.email,
+                        password: newStaff.password,
+                        first_name: newStaff.first_name,
+                        last_name: newStaff.last_name,
+                        department: newStaff.department,
+                        job_title: newStaff.job_title,
+                        job_id: newStaff.job_id,
+                        role: newStaff.role,
+                        org_id: profile.org_id,
+                    }),
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to create staff member');
+            }
+
+            // Success!
+            alert('Staff member created successfully!\n\nLogin credentials:\nEmail: ' + newStaff.email + '\nPassword: ' + newStaff.password + '\n\nPlease share these credentials with the staff member.');
 
             setIsAddModalOpen(false);
             setNewStaff({
                 first_name: '',
                 last_name: '',
+                email: '',
+                password: '',
+                confirmPassword: '',
                 department: '',
                 job_title: '',
-                job_id: ''
+                job_id: '',
+                role: UserRole.MECHANIC
             });
             fetchStaff();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating staff:', error);
-            alert('Failed to add staff member.');
+            alert('Failed to create staff member: ' + (error.message || 'Unknown error'));
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleEditStaff = (member: StaffMember) => {
+        setEditingStaff(member);
+        setEditForm({
+            first_name: member.first_name,
+            last_name: member.last_name,
+            email: member.email,
+            department: member.department,
+            job_title: member.job_title,
+            job_id: member.job_id,
+            role: member.role as UserRole
+        });
+        setIsEditModalOpen(true);
+    };
+
+    const handleUpdateStaff = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!profile?.org_id || !editingStaff) return;
+
+        try {
+            setIsSubmitting(true);
+
+            // 1. Update staff table
+            const { error: staffError } = await supabase
+                .from('staff')
+                .update({
+                    first_name: editForm.first_name,
+                    last_name: editForm.last_name,
+                    department: editForm.department,
+                    job_title: editForm.job_title,
+                    job_id: editForm.job_id,
+                    role: editForm.role,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', editingStaff.id);
+
+            if (staffError) throw staffError;
+
+            // 2. Update profiles table (if auth_user_id exists)
+            if (editingStaff.auth_user_id) {
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .update({
+                        full_name: `${editForm.first_name} ${editForm.last_name}`.trim(),
+                        role: editForm.role
+                    })
+                    .eq('id', editingStaff.auth_user_id);
+
+                if (profileError) {
+                    console.error('Error updating profile:', profileError);
+                    alert('Staff record updated, but linked profile update failed: ' + profileError.message);
+                }
+            }
+
+            alert('Staff member updated successfully!');
+            setIsEditModalOpen(false);
+            setEditingStaff(null);
+            fetchStaff();
+        } catch (error: any) {
+            console.error('Error updating staff:', error);
+            alert('Failed to update staff member: ' + (error.message || 'Unknown error'));
         } finally {
             setIsSubmitting(false);
         }
@@ -209,6 +342,7 @@ const Staff: React.FC = () => {
                                 <tr>
                                     <th className="px-6 py-4">Job ID</th>
                                     <th className="px-6 py-4">Name</th>
+                                    <th className="px-6 py-4">Role</th>
                                     <th className="px-6 py-4">Department</th>
                                     <th className="px-6 py-4">Job Title</th>
                                     <th className="px-6 py-4 text-center">Actions</th>
@@ -221,13 +355,18 @@ const Staff: React.FC = () => {
                                         <td className="px-6 py-5">
                                             <div className="flex items-center gap-3">
                                                 <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs ring-2 ring-white dark:ring-slate-700">
-                                                    {member.first_name[0]}{member.last_name[0]}
+                                                    {member.first_name?.[0] || ''}{member.last_name?.[0] || ''}
                                                 </div>
                                                 <div>
                                                     <p className="font-bold text-slate-900 dark:text-white leading-none">{member.first_name} {member.last_name}</p>
-                                                    <p className="text-xs text-slate-500 mt-1">Joined {new Date(member.created_at).toLocaleDateString()}</p>
+                                                    <p className="text-xs text-slate-500 mt-1">{member.email || 'No email'}</p>
                                                 </div>
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <span className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-semibold">
+                                                {member.role || 'Not set'}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-5">
                                             <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
@@ -238,9 +377,20 @@ const Staff: React.FC = () => {
                                             <p className="font-medium text-slate-900 dark:text-white">{member.job_title}</p>
                                         </td>
                                         <td className="px-6 py-5 text-center">
-                                            <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                                                <span className="material-symbols-outlined">more_vert</span>
-                                            </button>
+                                            <div className="flex items-center justify-center gap-2">
+                                                {profile?.role === UserRole.SUPERADMIN && (
+                                                    <button
+                                                        onClick={() => handleEditStaff(member)}
+                                                        className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                                        title="Edit Staff Member"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">edit</span>
+                                                    </button>
+                                                )}
+                                                <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                                                    <span className="material-symbols-outlined">more_vert</span>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -255,7 +405,7 @@ const Staff: React.FC = () => {
                 </div>
             </div>
 
-            {/* Add Staff Modal */}
+            {/* Add Staff Member Modal */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div
@@ -268,7 +418,7 @@ const Staff: React.FC = () => {
                         <div className="px-5 py-4 md:px-8 md:py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                             <div>
                                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Add Staff Member</h2>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">Enter details for the new staff member.</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Create a new staff member with login credentials and role.</p>
                             </div>
                             <button
                                 onClick={() => setIsAddModalOpen(false)}
@@ -303,6 +453,63 @@ const Staff: React.FC = () => {
                                         className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
                                     />
                                 </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">Email Address</label>
+                                    <input
+                                        required
+                                        type="email"
+                                        value={newStaff.email}
+                                        onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
+                                        placeholder="user@example.com"
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">Password</label>
+                                    <div className="relative">
+                                        <input
+                                            required
+                                            type={showPassword ? "text" : "password"}
+                                            value={newStaff.password}
+                                            onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
+                                            placeholder="Min. 8 characters"
+                                            minLength={8}
+                                            className="w-full px-4 py-2.5 pr-10 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]">
+                                                {showPassword ? 'visibility_off' : 'visibility'}
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">Confirm Password</label>
+                                    <div className="relative">
+                                        <input
+                                            required
+                                            type={showConfirmPassword ? "text" : "password"}
+                                            value={newStaff.confirmPassword}
+                                            onChange={(e) => setNewStaff({ ...newStaff, confirmPassword: e.target.value })}
+                                            placeholder="Re-enter password"
+                                            minLength={8}
+                                            className="w-full px-4 py-2.5 pr-10 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]">
+                                                {showConfirmPassword ? 'visibility_off' : 'visibility'}
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">Department</label>
                                     <input
@@ -325,7 +532,7 @@ const Staff: React.FC = () => {
                                         className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
                                     />
                                 </div>
-                                <div className="md:col-span-2">
+                                <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">Job ID / Employee Number</label>
                                     <input
                                         required
@@ -335,6 +542,21 @@ const Staff: React.FC = () => {
                                         placeholder="e.g., STF-001"
                                         className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
                                     />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">User Profile / Role</label>
+                                    <select
+                                        required
+                                        value={newStaff.role}
+                                        onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value as UserRole })}
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                    >
+                                        <option value={UserRole.MECHANIC}>Mechanic</option>
+                                        <option value={UserRole.WORKSHOP_SUPERVISOR}>Workshop Supervisor</option>
+                                        <option value={UserRole.CLIENT_OFFICER}>Client Officer</option>
+                                        <option value={UserRole.ADMIN}>Admin</option>
+                                        <option value={UserRole.SUPERADMIN}>Superadmin</option>
+                                    </select>
                                 </div>
                             </div>
 
@@ -355,6 +577,136 @@ const Staff: React.FC = () => {
                                 >
                                     {isSubmitting && <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
                                     {isSubmitting ? 'Adding...' : 'Add Staff Member'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            {/* Edit Staff Member Modal */}
+            {isEditModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div
+                        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+                        onClick={() => setIsEditModalOpen(false)}
+                    ></div>
+
+                    <div className="relative bg-white dark:bg-surface-dark w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+                        {/* Modal Header */}
+                        <div className="px-5 py-4 md:px-8 md:py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Edit Staff Member</h2>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Update staff member details and role.</p>
+                            </div>
+                            <button
+                                onClick={() => setIsEditModalOpen(false)}
+                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        {/* Modal Form */}
+                        <form onSubmit={handleUpdateStaff} className="p-5 md:p-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">First Name</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={editForm.first_name}
+                                        onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                                        placeholder="John"
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">Last Name</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={editForm.last_name}
+                                        onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                                        placeholder="Doe"
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">Email Address (Read-only)</label>
+                                    <input
+                                        disabled
+                                        type="email"
+                                        value={editForm.email}
+                                        className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-500 outline-none transition-all cursor-not-allowed"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">Department</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={editForm.department}
+                                        onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
+                                        placeholder="e.g., Maintenance"
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">Job Title</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={editForm.job_title}
+                                        onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })}
+                                        placeholder="e.g., Senior Mechanic"
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">Job ID / Employee Number</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={editForm.job_id}
+                                        onChange={(e) => setEditForm({ ...editForm, job_id: e.target.value })}
+                                        placeholder="e.g., STF-001"
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">User Profile / Role</label>
+                                    <select
+                                        required
+                                        value={editForm.role}
+                                        onChange={(e) => setEditForm({ ...editForm, role: e.target.value as UserRole })}
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                    >
+                                        <option value={UserRole.MECHANIC}>Mechanic</option>
+                                        <option value={UserRole.WORKSHOP_SUPERVISOR}>Workshop Supervisor</option>
+                                        <option value={UserRole.CLIENT_OFFICER}>Client Officer</option>
+                                        <option value={UserRole.ADMIN}>Admin</option>
+                                        <option value={UserRole.SUPERADMIN}>Superadmin</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className="pt-2 flex items-center justify-end gap-3">
+                                <button
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() => setIsEditModalOpen(false)}
+                                    className="px-6 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="px-8 py-2.5 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
+                                >
+                                    {isSubmitting && <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                                    {isSubmitting ? 'Saving...' : 'Save Changes'}
                                 </button>
                             </div>
                         </form>

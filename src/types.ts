@@ -66,6 +66,7 @@ export interface Vehicle {
   location: string;
   mileage: string;
   dailyRate: string;
+  category?: 'A' | 'B' | 'C';
   updatedAt?: string;
   updatedBy?: {
     id: string;
@@ -99,6 +100,7 @@ export interface Booking {
   customerAvatar: string;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
+  receiptNo?: string;
   startDate: string;
   endDate: string;
   durationDays: number;
@@ -108,6 +110,13 @@ export interface Booking {
     id: string;
     fullName: string;
   };
+  agreement?: Agreement;
+  extensions?: Extension[];
+  extraCharges?: ExtraCharge[];
+  totalPaid?: number;
+  totalOutstanding?: number;
+  isOverdue?: boolean;
+  daysOverdue?: number;
 }
 
 export interface Customer {
@@ -120,6 +129,7 @@ export interface Customer {
   location: string;
   status: CustomerStatus;
   profileImage: string;
+  ratingTier?: 'A' | 'B' | 'C';
   licenseVerified: boolean;
   returnDate?: string;
   lastDLDigits: string;
@@ -217,9 +227,45 @@ export interface Stat {
   percentage?: number;
 }
 
+export interface Agreement {
+  id: string;
+  orgId: string;
+  bookingId: string;
+  agreementDocId: string;
+  agreementLink: string;
+  createdAt: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface Extension {
+  id: string;
+  orgId: string;
+  bookingId: string;
+  dateFrom: string;
+  dateTo: string;
+  daysHired: number;
+  amountPaid: number;
+  receiptNo: string;
+  paymentMethod: string;
+  agreementId?: string;
+  agreementLink?: string;
+}
+
 export interface BranchLocation {
   id: string;
   name: string;
   address: string;
   isDefault: boolean;
+}
+
+export interface ExtraCharge {
+  id: string;
+  orgId: string;
+  bookingId: string;
+  charge_type: string;
+  amount: number;
+  description: string;
+  status: 'Paid' | 'Unpaid' | 'Partial';
+  createdAt: string;
 }

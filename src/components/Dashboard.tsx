@@ -1,13 +1,182 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import StatsCard from './StatsCard';
-import { INITIAL_STATS, MAINTENANCE_ITEMS, RECENT_BOOKINGS } from '../constants';
-import { BookingStatus, UserRole } from '../types';
+import { INITIAL_STATS, MAINTENANCE_ITEMS } from '../constants';
+import { BookingStatus, UserRole, Booking } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 const Dashboard: React.FC = () => {
   const { profile } = useAuth();
   const [timeRange, setTimeRange] = useState<'Week' | 'Month' | 'Year'>('Week');
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [vehicleStats, setVehicleStats] = useState({ available: 0, maintenance: 0, total: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (profile?.org_id) {
+      fetchDashboardData();
+    }
+  }, [profile?.org_id]);
+
+  const fetchDashboardData = async () => {
+    try {
+      if (!profile?.org_id) return;
+
+      // 1. Fetch Bookings
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          customer:customers(name, email, license_image_url, address),
+          vehicle:vehicles(name, plate),
+          updated_by_profile:profiles!bookings_updated_by_fkey(id, full_name)
+        `)
+        .eq('org_id', profile.org_id)
+        .order('created_at', { ascending: false });
+
+      if (bookingsError) throw bookingsError;
+
+      // 2. Fetch Vehicles for stats
+      const { data: vehiclesData, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select('status')
+        .eq('org_id', profile.org_id);
+
+      if (vehiclesError) console.error('Error fetching vehicles:', vehiclesError);
+
+      // Process Vehicle Stats
+      const vStats = { available: 0, maintenance: 0, total: 0 };
+      if (vehiclesData) {
+        vStats.total = vehiclesData.length;
+        vStats.available = vehiclesData.filter((v: any) => v.status === 'Available').length;
+        vStats.maintenance = vehiclesData.filter((v: any) => v.status === 'Maintenance').length;
+      }
+      setVehicleStats(vStats);
+
+      // 3. Fetch Extensions & Retrievals
+      const bookingIds = (bookingsData || []).map((b: any) => b.id);
+
+      const [extensionsRes, retrievalsRes] = await Promise.all([
+        supabase.from('booking_extensions').select('booking_id, amount_paid, receipt_no').in('booking_id', bookingIds),
+        supabase.from('retrievals').select('booking_id').in('booking_id', bookingIds)
+      ]);
+
+      const extensionsData = extensionsRes.data || [];
+      const retrievalsData = retrievalsRes.data || [];
+
+      const returnedBookingIds = new Set(retrievalsData.map((r: any) => r.booking_id));
+      const extensionsMap = new Map();
+      extensionsData.forEach((e: any) => {
+        const list = extensionsMap.get(e.booking_id) || [];
+        list.push(e);
+        extensionsMap.set(e.booking_id, list);
+      });
+
+      const mappedBookings: Booking[] = (bookingsData || []).map((b: any) => {
+        let isOverdue = false;
+        let daysOverdue = 0;
+
+        if (b.status === 'Active' || b.status === 'Extended' || b.status === 'Confirmed') {
+          const endDate = new Date(b.end_date);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          endDate.setHours(0, 0, 0, 0);
+
+          if (today > endDate && !returnedBookingIds.has(b.id)) {
+            isOverdue = true;
+            const diffTime = Math.abs(today.getTime() - endDate.getTime());
+            daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          }
+        }
+
+        return {
+          id: b.id,
+          bookingId: `#BK-${b.id.slice(0, 4).toUpperCase()}`,
+          customerName: b.customer?.name || 'Unknown Customer',
+          customerEmail: b.customer?.email || '',
+          customerAddress: b.customer?.address || '',
+          customerAvatar: b.customer?.license_image_url || `https://i.pravatar.cc/150?u=${b.customer_id}`,
+          vehicleName: b.vehicle?.name || 'Unknown Vehicle',
+          vehicleId: b.vehicle?.plate || '',
+          startDate: b.start_date || '',
+          endDate: b.end_date || '',
+          status: b.status as BookingStatus,
+          isOverdue,
+          daysOverdue,
+          vehicleUuid: b.vehicle_id,
+          durationDays: b.duration_days,
+          totalAmount: `K${b.total_amount || 0}`,
+          totalPaid: 0,
+          totalOutstanding: 0,
+          paymentStatus: 'Paid' as any
+        };
+      });
+
+      setBookings(mappedBookings);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dueTodayBookings = bookings.filter(b => {
+    // Note: BookingStatus enum might not have CANCELLED, checked previously
+    if (b.status === BookingStatus.COMPLETED) return false;
+    const end = new Date(b.endDate);
+    end.setHours(0, 0, 0, 0);
+    return end.getTime() === today.getTime();
+  });
+
+  const overdueBookings = bookings.filter(b => b.isOverdue);
+
+  // Dynamic Stats Calculation
+  const activeRentalsCount = bookings.filter(b => b.status === BookingStatus.ACTIVE || b.status === BookingStatus.EXTENDED).length;
+  const reservationsCount = bookings.filter(b => b.status === BookingStatus.CONFIRMED || b.status === BookingStatus.PENDING_PICKUP).length;
+  const overdueCount = overdueBookings.length;
+
+  const stats = [
+    {
+      label: 'Active Rentals',
+      value: activeRentalsCount.toString(),
+      trend: '+0%', // Placeholder trend
+      trendType: 'up' as const,
+      icon: 'car_rental',
+      iconBg: 'bg-blue-50 dark:bg-blue-900/20',
+      iconColor: 'text-blue-600'
+    },
+    {
+      label: 'Reservations',
+      value: reservationsCount.toString(),
+      trend: '+0%',
+      trendType: 'up' as const,
+      icon: 'event_available',
+      iconBg: 'bg-purple-50 dark:bg-purple-900/20',
+      iconColor: 'text-purple-600'
+    },
+    {
+      label: 'Overdue Rentals',
+      value: overdueCount.toString(),
+      trend: overdueCount > 0 ? 'Action Req' : 'Good',
+      trendType: overdueCount > 0 ? 'down' as const : 'up' as const,
+      icon: 'warning',
+      iconBg: 'bg-red-50 dark:bg-red-900/20',
+      iconColor: 'text-red-600'
+    },
+    {
+      label: 'Available Vehicles',
+      value: vehicleStats.available.toString(),
+      trend: `${vehicleStats.total} Total`,
+      trendType: 'neutral' as const,
+      icon: 'directions_car',
+      iconBg: 'bg-emerald-50 dark:bg-emerald-900/20',
+      iconColor: 'text-emerald-600'
+    }
+  ];
 
   const role = profile?.role || UserRole.ADMIN; // Default to Admin for now if no role
 
@@ -42,9 +211,9 @@ const Dashboard: React.FC = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {INITIAL_STATS.filter(stat => {
+        {stats.filter(stat => {
           if (isMechanic) return ['Vehicles', 'Maintenance'].includes(stat.label);
-          if (isClientOfficer) return ['Bookings', 'Customers', 'Vehicles'].includes(stat.label);
+          if (isClientOfficer) return ['Active Rentals', 'Reservations', 'Overdue Rentals', 'Available Vehicles'].includes(stat.label);
           return true;
         }).map((stat, idx) => (
           <StatsCard key={idx} stat={stat} />
@@ -126,84 +295,119 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Recent Bookings Table */}
+      {/* Bottom Section: Due Today & Overdue */}
       {(isManagement || isClientOfficer) && (
-        <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex flex-wrap justify-between items-center gap-4 bg-white dark:bg-surface-dark">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Recent Bookings</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Latest vehicle check-outs and returns</p>
+        <div className={`grid grid-cols-1 ${overdueBookings.length > 0 ? 'lg:grid-cols-2' : ''} gap-6`}>
+
+          {/* Bookings Due Today */}
+          <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-surface-dark">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Bookings Due Today</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Rentals scheduled to return by end of day</p>
+              </div>
+              <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-3 py-1 rounded-full text-xs font-bold">
+                {dueTodayBookings.length} Due
+              </span>
             </div>
-            <div className="flex gap-2">
-              <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-                <span className="material-symbols-outlined text-[18px]">filter_list</span>
-                Filter
-              </button>
-              <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-                <span className="material-symbols-outlined text-[18px]">download</span>
-                Export
-              </button>
+
+            {loading ? (
+              <div className="p-8 text-center text-slate-500">Loading bookings...</div>
+            ) : dueTodayBookings.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600 dark:text-slate-400">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase font-semibold text-slate-500 dark:text-slate-400">
+                    <tr>
+                      <th className="px-6 py-4">Vehicle</th>
+                      <th className="px-6 py-4">Customer</th>
+                      <th className="px-6 py-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-surface-dark">
+                    {dueTodayBookings.map((booking) => (
+                      <tr key={booking.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
+                          <div>
+                            <p>{booking.vehicleName}</p>
+                            <p className="text-xs text-slate-500 font-normal">{booking.vehicleId}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <img src={booking.customerAvatar} alt="" className="size-6 rounded-full bg-slate-200 object-cover" />
+                            {booking.customerName}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            Due Today
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-10 text-center text-slate-500 dark:text-slate-400">
+                <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">event_available</span>
+                <p>No bookings due today.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Overdue Bookings Table - Only appears if there are overdue bookings */}
+          {overdueBookings.length > 0 && (
+            <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-red-200 dark:border-red-900/50 shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500">
+              <div className="p-6 border-b border-red-100 dark:border-red-900/30 flex justify-between items-center bg-red-50 dark:bg-red-900/20">
+                <div>
+                  <h3 className="text-lg font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
+                    <span className="material-symbols-outlined">warning</span>
+                    Overdue Bookings
+                  </h3>
+                  <p className="text-sm text-red-600/80 dark:text-red-400/70">Action required: Vehicles not returned</p>
+                </div>
+                <span className="bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200 px-3 py-1 rounded-full text-xs font-bold shadow-sm">
+                  {overdueBookings.length} Overdue
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600 dark:text-slate-400">
+                  <thead className="bg-red-50/50 dark:bg-red-900/10 text-xs uppercase font-semibold text-red-500 dark:text-red-400">
+                    <tr>
+                      <th className="px-6 py-4">Vehicle</th>
+                      <th className="px-6 py-4">Customer</th>
+                      <th className="px-6 py-4">Overdue By</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-red-100 dark:divide-red-900/30 bg-white dark:bg-surface-dark">
+                    {overdueBookings.map((booking) => (
+                      <tr key={booking.id} className="hover:bg-red-50/30 dark:hover:bg-red-900/10 transition-colors group">
+                        <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
+                          <div>
+                            <p className="group-hover:text-red-600 transition-colors">{booking.vehicleName}</p>
+                            <p className="text-xs text-slate-500 font-normal">{booking.vehicleId}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <img src={booking.customerAvatar} alt="" className="size-6 rounded-full bg-slate-200 object-cover" />
+                            {booking.customerName}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 animate-pulse">
+                            +{booking.daysOverdue} Days
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-400">
-              <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase font-semibold text-slate-500 dark:text-slate-400">
-                <tr>
-                  <th className="px-6 py-4">Vehicle</th>
-                  <th className="px-6 py-4">License Plate</th>
-                  <th className="px-6 py-4">Customer</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Return Date</th>
-                  <th className="px-6 py-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-surface-dark">
-                {RECENT_BOOKINGS.map((booking) => (
-                  <tr key={booking.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
-                      <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-lg bg-slate-200 bg-cover bg-center" style={{ backgroundImage: `url(${booking.vehicleImage})` }}></div>
-                        {booking.vehicleName}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">{booking.licensePlate}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        {/* Fixed: Replaced missing customerColor and customerInitials with existing customerAvatar from Booking type */}
-                        <img src={booking.customerAvatar} alt="" className="size-6 rounded-full bg-slate-200 object-cover" />
-                        {booking.customerName}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${booking.status === BookingStatus.ACTIVE ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                        booking.status === BookingStatus.COMPLETED ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' :
-                          booking.status === BookingStatus.OVERDUE ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                            'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200'
-                        }`}>
-                        {booking.status}
-                      </span>
-                    </td>
-                    {/* Fixed: Replaced non-existent returnDate with endDate from Booking type */}
-                    <td className={`px-6 py-4 ${booking.status === BookingStatus.OVERDUE ? 'text-red-600 font-medium' : booking.status === BookingStatus.COMPLETED ? 'text-slate-400' : ''}`}>
-                      {booking.endDate}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button className="text-slate-400 hover:text-primary transition-colors">
-                        <span className="material-symbols-outlined">more_vert</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-surface-dark flex items-center justify-between">
-            <span className="text-sm text-slate-500 dark:text-slate-400">Showing 1-4 of 24 bookings</span>
-            <div className="flex gap-2">
-              <button className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-50">Previous</button>
-              <button className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">Next</button>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

@@ -110,6 +110,16 @@ const Settings: React.FC = () => {
     const [editingLocation, setEditingLocation] = useState<BranchLocation | null>(null);
     const [newLocation, setNewLocation] = useState({ name: '', address: '', isDefault: false });
 
+    // Password Update State
+    const [passwords, setPasswords] = useState({
+        new: '',
+        confirm: ''
+    });
+    const [showPasswords, setShowPasswords] = useState(false);
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+    const [passwordError, setPasswordError] = useState<string | null>(null);
+    const [passwordSuccess, setPasswordSuccess] = useState(false);
+
     const fetchLocations = async () => {
         if (!profile?.org_id) return;
         try {
@@ -205,6 +215,39 @@ const Settings: React.FC = () => {
         }
     };
 
+    const handleUpdatePassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPasswordError(null);
+        setPasswordSuccess(false);
+
+        if (passwords.new !== passwords.confirm) {
+            setPasswordError('Passwords do not match');
+            return;
+        }
+
+        if (passwords.new.length < 6) {
+            setPasswordError('Password must be at least 6 characters');
+            return;
+        }
+
+        setIsUpdatingPassword(true);
+        try {
+            const { error } = await supabase.auth.updateUser({
+                password: passwords.new
+            });
+
+            if (error) throw error;
+
+            setPasswordSuccess(true);
+            setPasswords({ new: '', confirm: '' });
+        } catch (error: any) {
+            console.error('Error updating password:', error);
+            setPasswordError(error.message || 'Failed to update password');
+        } finally {
+            setIsUpdatingPassword(false);
+        }
+    };
+
     const handleDeleteLocation = async (id: string) => {
         if (!confirm('Are you sure you want to delete this location?')) return;
         try {
@@ -277,7 +320,7 @@ const Settings: React.FC = () => {
     };
 
     const [theme, setTheme] = useState<Theme>(() => {
-        return (localStorage.getItem('theme') as Theme) || 'system';
+        return (localStorage.getItem('theme') as Theme) || 'light';
     });
 
     useEffect(() => {
@@ -334,6 +377,7 @@ const Settings: React.FC = () => {
                     { id: 'Billing & Invoices', icon: 'receipt_long', roles: [UserRole.SUPERADMIN] },
                     { id: 'Locations', icon: 'store', roles: [UserRole.SUPERADMIN, UserRole.ADMIN] },
                     { id: 'Team Members', icon: 'groups', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC] },
+                    { id: 'Security', icon: 'lock', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC] },
                     { id: 'Mobile Pairing', icon: 'qr_code_2', roles: [UserRole.SUPERADMIN] }
                 ].filter(tab => profile?.role && tab.roles.includes(profile.role as UserRole)).map(tab => (
                     <button
@@ -729,6 +773,88 @@ const Settings: React.FC = () => {
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {activeOrgTab === 'Security' && (
+                        <div className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-10 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-6 mb-8">
+                                <h2 className="text-2xl font-black text-slate-900 dark:text-white">Security Settings</h2>
+                                <span className="px-3 py-1 bg-amber-50 text-amber-600 dark:bg-amber-900/20 text-[10px] font-black uppercase tracking-widest rounded-lg border border-amber-100 dark:border-amber-800">Account Security</span>
+                            </div>
+
+                            <div className="max-w-md space-y-8">
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white">Change Password</h3>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm">Ensure your account is protected with a strong, unique password.</p>
+                                </div>
+
+                                <form onSubmit={handleUpdatePassword} className="space-y-6">
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">New Password</label>
+                                            <div className="relative">
+                                                <input
+                                                    type={showPasswords ? 'text' : 'password'}
+                                                    required
+                                                    value={passwords.new}
+                                                    onChange={e => setPasswords({ ...passwords, new: e.target.value })}
+                                                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                                    placeholder="Minimum 6 characters"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPasswords(!showPasswords)}
+                                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">
+                                                        {showPasswords ? 'visibility_off' : 'visibility'}
+                                                    </span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Confirm New Password</label>
+                                            <input
+                                                type={showPasswords ? 'text' : 'password'}
+                                                required
+                                                value={passwords.confirm}
+                                                onChange={e => setPasswords({ ...passwords, confirm: e.target.value })}
+                                                className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                                                placeholder="Repeat new password"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {passwordError && (
+                                        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-2xl flex items-center gap-3 text-red-600 dark:text-red-400">
+                                            <span className="material-symbols-outlined">error</span>
+                                            <p className="text-xs font-bold">{passwordError}</p>
+                                        </div>
+                                    )}
+
+                                    {passwordSuccess && (
+                                        <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-2xl flex items-center gap-3 text-emerald-600 dark:text-emerald-400">
+                                            <span className="material-symbols-outlined">check_circle</span>
+                                            <p className="text-xs font-bold">Password updated successfully!</p>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        type="submit"
+                                        disabled={isUpdatingPassword}
+                                        className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-sm font-black hover:scale-[1.02] transition-all shadow-xl shadow-slate-900/10 flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {isUpdatingPassword ? (
+                                            <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                        ) : (
+                                            <span className="material-symbols-outlined text-[20px]">key</span>
+                                        )}
+                                        Update Password
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     )}
                 </div>

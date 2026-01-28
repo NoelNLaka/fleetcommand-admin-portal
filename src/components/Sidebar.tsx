@@ -77,8 +77,19 @@ const Sidebar: React.FC<SidebarProps> = ({ className = "", onMobileItemClick }) 
         {
             title: 'Management',
             items: [
-                { id: 'reports', label: 'Reports', icon: 'bar_chart', path: '/reports', roles: [UserRole.SUPERADMIN, UserRole.ADMIN] },
+                {
+                    id: 'reports',
+                    label: 'Reports',
+                    icon: 'bar_chart',
+                    path: '/reports',
+                    roles: [UserRole.SUPERADMIN, UserRole.ADMIN],
+                    subItems: [
+                        { id: 'reports-overview', label: 'Overview', path: '/reports' },
+                        { id: 'audit-log', label: 'Audit Log', path: '/reports/audit' },
+                    ]
+                },
                 { id: 'staff', label: 'Staff', icon: 'badge', path: '/staff', roles: [UserRole.SUPERADMIN] },
+                { id: 'agreements', label: 'Agreements', icon: 'description', path: '/agreements', roles: [UserRole.SUPERADMIN] },
                 { id: 'settings', label: 'Settings', icon: 'settings', path: '/settings', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.CLIENT_OFFICER, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC] },
             ]
         }

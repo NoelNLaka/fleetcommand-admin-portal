@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { VehicleStatus, Vehicle, InsuranceRecordType, InsuranceStatus, MaintenanceStatus, BranchLocation } from '../types';
+import { VehicleStatus, Vehicle, InsuranceRecordType, InsuranceStatus, MaintenanceStatus, BranchLocation, UserRole } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -47,6 +47,7 @@ const Inventory: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+  const [tierFilter, setTierFilter] = useState('All');
 
   // Add Vehicle State
   const [locations, setLocations] = useState<BranchLocation[]>([]);
@@ -58,7 +59,8 @@ const Inventory: React.FC = () => {
     vin: '',
     location: '',
     dailyRate: '',
-    mileage: ''
+    mileage: '',
+    category: 'B' as 'A' | 'B' | 'C'
   });
 
   const fetchLocations = async () => {
@@ -117,6 +119,7 @@ const Inventory: React.FC = () => {
             location: newVehicle.location,
             mileage: parseInt(newVehicle.mileage) || 0,
             daily_rate: parseFloat(newVehicle.dailyRate.replace(/[^0-9.]/g, '')) || 0,
+            category: newVehicle.category,
             updated_by: profile.id,
             updated_at: new Date().toISOString()
           })
@@ -136,6 +139,7 @@ const Inventory: React.FC = () => {
           location: newVehicle.location,
           mileage: parseInt(newVehicle.mileage) || 0,
           daily_rate: parseFloat(newVehicle.dailyRate.replace(/[^0-9.]/g, '')) || 0,
+          category: newVehicle.category,
           updated_by: profile.id
         }]);
 
@@ -152,7 +156,8 @@ const Inventory: React.FC = () => {
         vin: '',
         location: '',
         dailyRate: '',
-        mileage: ''
+        mileage: '',
+        category: 'B' as 'A' | 'B' | 'C'
       });
       fetchVehicles();
       // Refetch locations to reset default if needed
@@ -197,6 +202,7 @@ const Inventory: React.FC = () => {
         location: v.location || '',
         mileage: v.mileage || '0',
         dailyRate: v.daily_rate || '$0.00',
+        category: v.category,
         updatedAt: v.updated_at,
         updatedBy: v.updated_by_profile ? {
           id: v.updated_by_profile.id,
@@ -312,6 +318,38 @@ const Inventory: React.FC = () => {
     }
   }, [selectedVehicleId]);
 
+  const handleStatusUpdate = async (newStatus: VehicleStatus) => {
+    if (!selectedVehicleId || !profile?.org_id) return;
+
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({
+          status: newStatus,
+          updated_by: profile.id,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedVehicleId)
+        .eq('org_id', profile.org_id);
+
+      if (error) throw error;
+
+      // Update local state
+      setVehicles(prev => prev.map(v =>
+        v.id === selectedVehicleId ? { ...v, status: newStatus } : v
+      ));
+
+      // If we are editing the vehicle currently, update that too
+      if (editingVehicle?.id === selectedVehicleId) {
+        setEditingVehicle(prev => prev ? { ...prev, status: newStatus } : null);
+      }
+
+    } catch (error) {
+      console.error('Error updating vehicle status:', error);
+      alert('Failed to update vehicle status');
+    }
+  };
+
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId) || (vehicles.length > 0 ? vehicles[0] : null);
 
   const getStatusColor = (status: VehicleStatus) => {
@@ -336,12 +374,14 @@ const Inventory: React.FC = () => {
       vehicle.plate.toLowerCase().includes(searchLower) ||
       vehicle.vin.toLowerCase().includes(searchLower);
 
-    if (activeFilter === 'All') return matchesSearch;
-    if (activeFilter === 'Available') return matchesSearch && vehicle.status === VehicleStatus.AVAILABLE;
-    if (activeFilter === 'Rented') return matchesSearch && vehicle.status === VehicleStatus.RENTED;
-    if (activeFilter === 'Maintenance') return matchesSearch && vehicle.status === VehicleStatus.MAINTENANCE;
+    const matchesTier = tierFilter === 'All' || vehicle.category === tierFilter;
 
-    return matchesSearch;
+    if (activeFilter === 'All') return matchesSearch && matchesTier;
+    if (activeFilter === 'Available') return matchesSearch && vehicle.status === VehicleStatus.AVAILABLE && matchesTier;
+    if (activeFilter === 'Rented') return matchesSearch && vehicle.status === VehicleStatus.RENTED && matchesTier;
+    if (activeFilter === 'Maintenance') return matchesSearch && vehicle.status === VehicleStatus.MAINTENANCE && matchesTier;
+
+    return matchesSearch && matchesTier;
   });
 
   const formatDate = (dateStr: string) => {
@@ -435,6 +475,25 @@ const Inventory: React.FC = () => {
             />
           </div>
 
+          <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-50 dark:border-slate-800/50">
+            <p className="w-full text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Fleet Segment</p>
+            {['All', 'A', 'B', 'C'].map(tier => (
+              <button
+                key={tier}
+                onClick={() => setTierFilter(tier)}
+                className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${tierFilter === tier
+                  ? 'bg-slate-900 text-white shadow-md dark:bg-primary'
+                  : 'bg-slate-50 text-slate-500 hover:bg-slate-100 dark:bg-slate-800/50'
+                  }`}
+              >
+                {tier === 'All' ? 'ALL TIERS' :
+                  tier === 'A' ? 'PREMIER (A)' :
+                    tier === 'B' ? 'STANDARD (B)' :
+                      'BUDGET (C)'}
+              </button>
+            ))}
+          </div>
+
           <div className="flex flex-wrap gap-2">
             {['All', 'Available', 'Rented', 'Maintenance'].map(filter => (
               <button
@@ -471,9 +530,19 @@ const Inventory: React.FC = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-slate-900 dark:text-white truncate">{vehicle.plate}</h3>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getStatusColor(vehicle.status)}`}>
-                    {vehicle.status}
-                  </span>
+                  <div className="flex gap-1">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getStatusColor(vehicle.status)}`}>
+                      {vehicle.status}
+                    </span>
+                    {vehicle.category && (
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${vehicle.category === 'A' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        vehicle.category === 'B' ? 'bg-slate-50 text-slate-700 border-slate-200' :
+                          'bg-blue-50 text-blue-700 border-blue-200'
+                        }`}>
+                        {vehicle.category}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-slate-500 truncate">{vehicle.name}</p>
               </div>
@@ -518,7 +587,17 @@ const Inventory: React.FC = () => {
                   <div className="flex-1 space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="text-center md:text-left">
-                        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white uppercase tracking-wide">{selectedVehicle.plate}</h1>
+                        <div className="flex items-center justify-center md:justify-start gap-3">
+                          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white uppercase tracking-wide">{selectedVehicle.plate}</h1>
+                          {selectedVehicle.category && (
+                            <span className={`px-2 py-1 rounded-lg text-xs font-black border-2 ${selectedVehicle.category === 'A' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                              selectedVehicle.category === 'B' ? 'bg-slate-50 text-slate-700 border-slate-200' :
+                                'bg-blue-50 text-blue-700 border-blue-200'
+                              }`}>
+                              Tier {selectedVehicle.category}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-1 text-slate-500 text-sm">
                           <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
                             {selectedVehicle.name}
@@ -549,7 +628,8 @@ const Inventory: React.FC = () => {
                               vin: selectedVehicle.vin,
                               location: selectedVehicle.location,
                               dailyRate: selectedVehicle.dailyRate.toString().replace(/[^0-9.]/g, ''),
-                              mileage: selectedVehicle.mileage.toString()
+                              mileage: selectedVehicle.mileage.toString(),
+                              category: selectedVehicle.category || 'B'
                             });
                             setIsAddModalOpen(true);
                           }}
@@ -565,6 +645,19 @@ const Inventory: React.FC = () => {
                       <span className={`px-3 py-1 text-[10px] md:text-xs font-bold rounded flex items-center gap-1 ${getStatusColor(selectedVehicle.status)}`}>
                         {selectedVehicle.status}
                       </span>
+                      {selectedVehicle.status === VehicleStatus.MAINTENANCE && profile?.role === UserRole.SUPERADMIN && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to mark this vehicle as Available?')) {
+                              handleStatusUpdate(VehicleStatus.AVAILABLE);
+                            }
+                          }}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] md:text-xs font-bold rounded flex items-center gap-1 transition-colors shadow-sm"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                          Mark as Available
+                        </button>
+                      )}
                       <span className="px-3 py-1 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 text-[10px] md:text-xs font-bold rounded flex items-center gap-1">
                         <span className="material-symbols-outlined text-[14px]">speed</span>
                         {selectedVehicle.mileage} mi
@@ -994,6 +1087,25 @@ const Inventory: React.FC = () => {
                           placeholder="50.00"
                           className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Vehicle Category</label>
+                        <select
+                          value={newVehicle.category}
+                          onChange={e => setNewVehicle({ ...newVehicle, category: e.target.value as 'A' | 'B' | 'C' })}
+                          disabled={profile?.role !== 'Superadmin'}
+                          className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-4 focus:ring-primary/10 outline-none transition-all ${profile?.role !== 'Superadmin' ? 'cursor-not-allowed opacity-60' : ''}`}
+                        >
+                          <option value="A">Premier (A)</option>
+                          <option value="B">Standard (B)</option>
+                          <option value="C">Budget (C)</option>
+                        </select>
+                        {profile?.role !== 'Superadmin' && (
+                          <p className="text-[10px] text-amber-500 mt-1 ml-1 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">lock</span>
+                            Only Superadmin can change categories
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

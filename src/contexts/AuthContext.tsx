@@ -39,31 +39,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('[Auth] Fetching profile...');
 
         try {
-            console.log('[Auth] Querying profiles table for userId:', userId);
+            console.log('[Auth] Querying staff table for userId:', userId);
 
             // Add timeout to prevent hanging
             const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('Profile fetch timeout after 10s')), 10000)
             );
 
-            const queryPromise = supabase
+            // First try to get from staff table (new users)
+            const staffQueryPromise = supabase
+                .from('staff')
+                .select('id, org_id, first_name, last_name, role')
+                .eq('auth_user_id', userId)
+                .maybeSingle();
+
+            const { data: staffData, error: staffError } = await Promise.race([staffQueryPromise, timeoutPromise]) as Awaited<typeof staffQueryPromise>;
+
+            console.log('[Auth] Staff query result:', { staffData, staffError });
+
+            if (staffData) {
+                // Found in staff table - map to profile format
+                console.log('[Auth] Staff profile loaded successfully:', staffData?.role);
+                setProfile({
+                    id: staffData.id,
+                    org_id: staffData.org_id,
+                    full_name: `${staffData.first_name} ${staffData.last_name}`.trim(),
+                    avatar_url: null,
+                    role: staffData.role as UserRole,
+                });
+                return;
+            }
+
+            // Fallback: check profiles table for legacy users
+            console.log('[Auth] No staff record found, checking profiles table...');
+            const profileQueryPromise = supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', userId)
                 .maybeSingle();
 
-            const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as Awaited<typeof queryPromise>;
+            const { data: profileData, error: profileError } = await Promise.race([profileQueryPromise, timeoutPromise]) as Awaited<typeof profileQueryPromise>;
 
-            console.log('[Auth] Profile query result:', { data, error });
+            console.log('[Auth] Profile query result:', { profileData, profileError });
 
-            if (error) {
-                console.error('[Auth] Profile fetch error:', error.code, error.message);
+            if (profileError) {
+                console.error('[Auth] Profile fetch error:', profileError.code, profileError.message);
                 setProfile(null);
-            } else if (data) {
-                console.log('[Auth] Profile loaded successfully:', data?.role);
-                setProfile(data);
+            } else if (profileData) {
+                console.log('[Auth] Legacy profile loaded successfully:', profileData?.role);
+                setProfile(profileData);
             } else {
-                console.warn('[Auth] No profile found for user - may need to create one');
+                console.warn('[Auth] No staff or profile found for user');
                 setProfile(null);
             }
         } catch (err) {

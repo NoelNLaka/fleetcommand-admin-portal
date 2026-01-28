@@ -10,6 +10,7 @@ import Inventory from './components/Inventory';
 import Maintenance from './components/Maintenance';
 import Insurance from './components/Insurance';
 import Reports from './components/Reports';
+import AuditLog from './components/AuditLog';
 import Staff from './components/Staff';
 import Settings from './components/Settings';
 import InventoryParts from './components/InventoryParts';
@@ -18,6 +19,7 @@ import InventoryTyres from './components/InventoryTyres';
 import InventoryTools from './components/InventoryTools';
 import Suppliers from './components/Suppliers';
 import WorkshopStaff from './components/WorkshopStaff';
+import Agreements from './components/Agreements';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import SuccessPage from './pages/SuccessPage';
@@ -78,7 +80,9 @@ const ProtectedLayout: React.FC = () => {
             case 'maintenance': return 'Maintenance Scheduling';
             case 'suppliers': return 'Suppliers Management';
             case 'insurance': return 'Insurance & Registration';
-            case 'reports': return 'Reports Dashboard';
+            case 'reports':
+                if (location.pathname.includes('/reports/audit')) return 'System Audit Trail';
+                return 'Reports Dashboard';
             case 'staff':
                 if (location.pathname.includes('/staff/workshop')) return 'Workshop Staff Management';
                 return 'Staff Management';
@@ -90,6 +94,7 @@ const ProtectedLayout: React.FC = () => {
             case 'inventory/tyres': return 'Tyre Inventory';
             case 'inventory/tools': return 'Tools & Equipment';
             case 'customers': return 'Customer Management';
+            case 'agreements': return 'Rental Agreements';
             case 'settings': return 'System Settings';
             default: return undefined;
         }
@@ -201,9 +206,19 @@ const App: React.FC = () => {
                         <Reports />
                     </RoleRoute>
                 } />
+                <Route path="/reports/audit" element={
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN]}>
+                        <AuditLog />
+                    </RoleRoute>
+                } />
                 <Route path="/staff" element={
                     <RoleRoute allowedRoles={[UserRole.SUPERADMIN]}>
                         <Staff />
+                    </RoleRoute>
+                } />
+                <Route path="/agreements" element={
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN]}>
+                        <Agreements />
                     </RoleRoute>
                 } />
                 <Route path="/settings" element={<Settings />} />
