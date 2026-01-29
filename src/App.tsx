@@ -147,7 +147,7 @@ const App: React.FC = () => {
                     </RoleRoute>
                 } />
                 <Route path="/inventory" element={
-                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN]}>
+                    <RoleRoute allowedRoles={[UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MECHANIC]}>
                         <Inventory />
                     </RoleRoute>
                 } />

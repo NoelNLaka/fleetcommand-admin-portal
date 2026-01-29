@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import StatsCard from './StatsCard';
-import { INITIAL_STATS, MAINTENANCE_ITEMS } from '../constants';
-import { BookingStatus, UserRole, Booking } from '../types';
+import { INITIAL_STATS } from '../constants';
+import { BookingStatus, UserRole, Booking, MaintenanceStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -11,6 +11,7 @@ const Dashboard: React.FC = () => {
   const [timeRange, setTimeRange] = useState<'Week' | 'Month' | 'Year'>('Week');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [vehicleStats, setVehicleStats] = useState({ available: 0, maintenance: 0, total: 0 });
+  const [maintenanceItems, setMaintenanceItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -114,6 +115,39 @@ const Dashboard: React.FC = () => {
       });
 
       setBookings(mappedBookings);
+
+      // 4. Fetch Maintenance Records
+      const { data: maintenanceData, error: maintenanceError } = await supabase
+        .from('maintenance_records')
+        .select(`
+          id,
+          service_type,
+          scheduled_date,
+          status,
+          work_order_number,
+          vehicle:vehicles(name)
+        `)
+        .eq('org_id', profile.org_id)
+        .neq('status', 'Done')
+        .neq('status', 'done')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (maintenanceError) console.error('Error fetching maintenance:', maintenanceError);
+
+      if (maintenanceData) {
+        const mappedMaintenance = maintenanceData.map((m: any) => ({
+          id: m.id,
+          vehicleName: m.vehicle?.name || 'Unknown Vehicle',
+          service: m.service_type || 'Maintenance',
+          dueDate: m.scheduled_date ? new Date(m.scheduled_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Pending',
+          status: m.status,
+          workOrderNumber: m.work_order_number,
+          isUrgent: m.status?.toLowerCase() === 'overdue',
+          icon: getMaintenanceIcon(m.service_type)
+        }));
+        setMaintenanceItems(mappedMaintenance);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -267,29 +301,41 @@ const Dashboard: React.FC = () => {
               </h3>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {MAINTENANCE_ITEMS.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${item.isUrgent
-                    ? 'bg-orange-50 dark:bg-orange-900/10 border-orange-100 dark:border-orange-900/20'
-                    : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800'
-                    }`}
-                >
-                  <div className={`${item.isUrgent ? 'bg-orange-100 dark:bg-orange-800/30 text-orange-600 dark:text-orange-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'} p-2 rounded shrink-0`}>
-                    <span className="material-symbols-outlined text-lg">{item.icon}</span>
+              {maintenanceItems.length > 0 ? (
+                maintenanceItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${item.isUrgent
+                      ? 'bg-orange-50 dark:bg-orange-900/10 border-orange-100 dark:border-orange-900/20'
+                      : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800'
+                      }`}
+                  >
+                    <div className={`${item.isUrgent ? 'bg-orange-100 dark:bg-orange-800/30 text-orange-600 dark:text-orange-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'} p-2 rounded shrink-0`}>
+                      <span className="material-symbols-outlined text-lg">{item.icon}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start">
+                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{item.vehicleName}</p>
+                        {item.workOrderNumber && (
+                          <span className="text-[10px] font-mono bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded">
+                            #{item.workOrderNumber}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{item.service}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Due: {item.dueDate}</p>
+                    </div>
+                    <button className={`text-xs font-medium px-2 py-1 rounded transition-colors bg-white dark:bg-surface-dark border ${item.isUrgent
+                      ? 'text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/30 hover:bg-orange-50'
+                      : 'text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                      }`}>
+                      {item.isUrgent ? 'Schedule' : 'Details'}
+                    </button>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{item.vehicleName}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{item.service} • {item.dueDate}</p>
-                  </div>
-                  <button className={`text-xs font-medium px-2 py-1 rounded transition-colors bg-white dark:bg-surface-dark border ${item.isUrgent
-                    ? 'text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/30 hover:bg-orange-50'
-                    : 'text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-                    }`}>
-                    {item.isUrgent ? 'Schedule' : 'Details'}
-                  </button>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div className="p-4 text-center text-slate-500 text-sm">No maintenance due.</div>
+              )}
             </div>
           </div>
         </div>
@@ -415,3 +461,13 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
+
+const getMaintenanceIcon = (serviceType: string = ''): string => {
+  const type = serviceType.toLowerCase();
+  if (type.includes('oil')) return 'oil_barrel';
+  if (type.includes('tire') || type.includes('tyre')) return 'tire_repair';
+  if (type.includes('brake')) return 'build'; // Changed from 'disc_brake' to 'build'
+  if (type.includes('battery')) return 'battery_alert';
+  if (type.includes('inspection')) return 'fact_check';
+  return 'build';
+};

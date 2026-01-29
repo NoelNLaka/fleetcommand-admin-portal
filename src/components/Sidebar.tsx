@@ -54,7 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = "", onMobileItemClick }) 
         {
             title: 'Operations',
             items: [
-                { id: 'fleet', label: 'Fleet', icon: 'directions_car', path: '/inventory', roles: [UserRole.SUPERADMIN, UserRole.ADMIN] },
+                { id: 'fleet', label: 'Fleet', icon: 'directions_car', path: '/inventory', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MECHANIC] },
                 { id: 'maintenance', label: 'Maintenance', icon: 'handyman', path: '/maintenance', roles: [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WORKSHOP_SUPERVISOR, UserRole.MECHANIC] },
                 {
                     id: 'inventory',

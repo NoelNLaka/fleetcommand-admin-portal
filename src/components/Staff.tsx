@@ -48,6 +48,8 @@ const Staff: React.FC = () => {
         role: UserRole.MECHANIC
     });
 
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -221,6 +223,47 @@ const Staff: React.FC = () => {
         }
     };
 
+    const handleDeleteStaff = async (member: StaffMember) => {
+        if (!confirm(`Are you sure you want to delete ${member.first_name} ${member.last_name}? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            setIsDeleting(true);
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('No active session');
+
+            const response = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-staff-user`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({
+                        staff_id: member.id,
+                        auth_user_id: member.auth_user_id
+                    }),
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to delete staff member');
+            }
+
+            alert('Staff member deleted successfully');
+            fetchStaff();
+        } catch (error: any) {
+            console.error('Error deleting staff:', error);
+            alert('Failed to delete staff member: ' + (error.message || 'Unknown error'));
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const filteredStaff = staff.filter(s =>
         `${s.first_name} ${s.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.job_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -385,6 +428,16 @@ const Staff: React.FC = () => {
                                                         title="Edit Staff Member"
                                                     >
                                                         <span className="material-symbols-outlined text-[20px]">edit</span>
+                                                    </button>
+                                                )}
+                                                {profile?.role === UserRole.SUPERADMIN && (
+                                                    <button
+                                                        onClick={() => handleDeleteStaff(member)}
+                                                        disabled={isDeleting}
+                                                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                        title="Delete Staff Member"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">delete</span>
                                                     </button>
                                                 )}
                                                 <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
